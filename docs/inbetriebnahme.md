@@ -45,13 +45,51 @@ Referenz (Architektur, URL-Struktur, Webserver, Ressourcen): [deployment.md](dep
 
 ## 2. Installation (inkl. Auto-Deploy)
 
+### Was wird benötigt?
+
+Keine Home-Assistant-Integration, kein HACS und keine Python-Zusatzpakete – das Tool
+braucht nur Python ≥ 3.11 und Git. Je nach Variante:
+
+| Variante | Benötigt | Meist schon vorhanden? |
+|---|---|---|
+| A – Raspberry Pi OS (systemd) | SSH-Zugang, `git`, `python3` ≥ 3.11 | Python ja (Bookworm: 3.11), `git` evtl. nachinstallieren |
+| B – Docker Compose | wie A, plus Docker mit Compose-Plugin | Docker ja, falls HA/EVCC schon in Docker laufen |
+| C – Home Assistant OS | einmalig ein Terminal-Add-on (**„Terminal & SSH“**) zum Kopieren der 4 Add-on-Dateien | nein – siehe unten |
+
+Wo das Repo landet: bei A und B klonen Sie es selbst nach `/opt/ladestatistik`
+(Befehle unten). Bei C klont das Add-on das Repo beim ersten Start selbst nach `/data/app`
+und hält es aktuell – Sie kopieren nur die 4 Dateien des Add-ons.
+
+### Terminal auf dem Pi öffnen
+
+**Raspberry Pi OS (A, B):** vom Laptop per SSH verbinden:
+```bash
+ssh <benutzer>@<ip-des-pi>        # z.B. ssh pi@192.168.1.50
+```
+IP-Adresse: im Router oder in Home Assistant unter Einstellungen → System → Netzwerk.
+Ist SSH aus, am Pi mit Bildschirm/Tastatur `sudo raspi-config` → *Interface Options* →
+*SSH* → aktivieren (oder beim Flashen im Raspberry Pi Imager einschalten).
+
+**Home Assistant OS (C):** HA OS hat kein frei zugängliches Terminal. Einmalig das
+offizielle Add-on **„Terminal & SSH“** installieren:
+1. Einstellungen → Add-ons → *Add-on-Store* → „Terminal & SSH“ suchen → *Installieren*.
+2. Reiter *Info*: *Starten*, „In Seitenleiste anzeigen“ einschalten.
+3. In der Seitenleiste *Terminal* öffnen – das ist ein Terminal direkt im Browser,
+   Schlüssel/Passwort braucht es dafür nicht.
+
+(„Advanced SSH & Web Terminal“ aus dem Community-Store geht ebenso.) Ohne Terminal: Add-on
+„Samba share“ installieren und den Ordner
+[`deploy/homeassistant-addon/ladestatistik`](../deploy/homeassistant-addon/ladestatistik)
+vom Laptop aus in die Netzwerkfreigabe `\\homeassistant\addons\ladestatistik` kopieren
+(Repo vorher auf GitHub als ZIP herunterladen: *Code* → *Download ZIP*).
+
 ### A – Raspberry Pi OS mit systemd
 
 ```bash
 python3 --version          # ≥ 3.11 (Raspberry Pi OS Bookworm: 3.11)
-sudo apt install -y git
+sudo apt update && sudo apt install -y git
 
-# Dienstbenutzer ohne Login, Code unter /opt/ladestatistik
+# Repo auf den Pi holen: Dienstbenutzer ohne Login, Code unter /opt/ladestatistik
 sudo useradd --system --create-home --home-dir /var/lib/ladestatistik \
      --shell /usr/sbin/nologin ladestatistik
 sudo mkdir /opt/ladestatistik && sudo chown ladestatistik: /opt/ladestatistik
@@ -79,6 +117,10 @@ curl -sI http://127.0.0.1:8099/reports/charging/ | head -1      # HTTP/1.0 200 O
 sudo -u ladestatistik python3 -m ladestatistik -c config.toml health
 ```
 
+Ist der Code noch nicht in `main` gemergt: beim `git clone` `--branch
+claude/muttenz-charging-analysis-44bv84` verwenden und denselben Branch in
+`/etc/default/ladestatistik` als `DEPLOY_BRANCH` eintragen (gilt auch für B).
+
 Einstellungen für das Auto-Deploy stehen in `/etc/default/ladestatistik` (Branch, Modus).
 Der Webserver lauscht nur auf `127.0.0.1:8099`. Läuft `cloudflared` in einem Docker-Container
 ohne Host-Netzwerk, in `deploy/systemd/ladestatistik-web.service` `--host 0.0.0.0` setzen
@@ -87,6 +129,10 @@ ohne Host-Netzwerk, in `deploy/systemd/ladestatistik-web.service` `--host 0.0.0.
 ### B – Docker Compose
 
 ```bash
+docker compose version     # Compose-Plugin vorhanden? sonst: sudo apt install -y docker-compose-plugin
+sudo apt update && sudo apt install -y git
+
+# Repo auf den Pi holen
 sudo mkdir /opt/ladestatistik && sudo chown "$USER": /opt/ladestatistik
 git clone --branch main https://github.com/c2fel/sustainability-muttenz.git /opt/ladestatistik
 cd /opt/ladestatistik
@@ -106,15 +152,17 @@ sudo systemctl daemon-reload && sudo systemctl enable --now ladestatistik-autode
 Das Add-on enthält nur einen kleinen Supervisor: Er holt den Code beim Start von GitHub,
 startet die Dienste und rollt neue Commits selbst aus (Auto-Deploy eingebaut).
 
-1. Add-on **„Advanced SSH & Web Terminal“** (oder „Terminal & SSH“) öffnen und die vier
-   Add-on-Dateien holen:
+1. Im Terminal (Add-on „Terminal & SSH“, siehe oben) die vier Add-on-Dateien in den
+   Ordner für lokale Add-ons laden:
    ```bash
    mkdir -p /addons/ladestatistik && cd /addons/ladestatistik
    for f in config.yaml build.yaml Dockerfile supervisor.py; do
-     wget -q "https://raw.githubusercontent.com/c2fel/sustainability-muttenz/main/deploy/homeassistant-addon/ladestatistik/$f"
+     curl -fsSLO "https://raw.githubusercontent.com/c2fel/sustainability-muttenz/main/deploy/homeassistant-addon/ladestatistik/$f"
    done
    ls    # config.yaml  build.yaml  Dockerfile  supervisor.py
    ```
+   Solange der Code noch nicht in `main` ist, in der URL `main` durch
+   `claude/muttenz-charging-analysis-44bv84` ersetzen.
 2. Einstellungen → Add-ons → Add-on-Store → ⋮ → **„Nach Updates suchen“** → unter
    „Lokale Add-ons“ **Ladestatistik Muttenz** → *Installieren* (baut das Image, einige Minuten).
 3. Reiter *Konfiguration*: `branch: main` (bzw. vorübergehend den Feature-Branch),
