@@ -17,16 +17,22 @@ Diese Ladepunkte sind im Collector als **Fokus** gesetzt (`focus_radius_m = 800`
 | 1 | 224 m | **Eotec AG**, Hardstrasse 21 | `CH*SUI*E31283` | `CH/SUI/46875/147386` | 22 kW AC, Typ 2 | eingeschränkt | 24/7 | 0.39 CHF/kWh + 1.20 CHF/h |
 | | | | `CH*SUI*E31284` | `CH/SUI/46875/147384` | 22 kW AC, Typ 2 | eingeschränkt | 24/7 | 0.39 CHF/kWh + 1.20 CHF/h |
 | 2 | 249 m | **Ageba Treuhand AG**, Hofackerstrasse 3 | `CH*SUI*E30985` | `CH/SUI/43981/147374` | 11 kW AC, Typ 2 | eingeschränkt | 24/7 | 0.35 CHF/kWh + 1.81 CHF/h |
-| 3 | 540 m | **IWB**, Jakob-Eglin-Strasse / Hauptstrasse 80 | `CH*IWB*E55318` | `CH/IWB/47020/148231` | 22 kW AC, Typ 2 | öffentlich | 24/7 | Tarif-ID `179904` noch nicht in der API |
-| | | | `CH*IWB*E55319` | `CH/IWB/47020/148233` | 22 kW AC, Typ 2 | öffentlich | 24/7 | Tarif-ID `179904` noch nicht in der API |
-| 4 | 561 m | **Coop Muttenz Dorf** (Energie 360°/JOYA), Brühlweg 8 | `CH*360*E88149` | `CH/360/44187/149312` | 22 kW AC, Typ 2 | öffentlich | Mo–Fr 08–20, Sa 07:30–20 | Tarif-ID `182674` noch nicht in der API |
+| 3 | 540 m | **IWB**, Jakob-Eglin-Strasse / Hauptstrasse 80 | `CH*IWB*E55318` | `CH/IWB/47020/148231` | 22 kW AC, Typ 2 | öffentlich | 24/7 | 0.48 CHF/kWh, keine Blockiergebühr² |
+| | | | `CH*IWB*E55319` | `CH/IWB/47020/148233` | 22 kW AC, Typ 2 | öffentlich | 24/7 | dito² |
+| 4 | 561 m | **Coop Muttenz Dorf** (Energie 360°/JOYA), Brühlweg 8 | `CH*360*E88149` | `CH/360/44187/149312` | 22 kW AC, Typ 2 | öffentlich | Mo–Fr 08–20, Sa 07:30–20 | 0.39 CHF/kWh² |
 | | | | `CH*360*E88150` | `CH/360/44187/149314` | 22 kW AC, Typ 2 | öffentlich | dito | dito |
 | | | | `CH*360*E88186` | `CH/360/44187/149328` | 22 kW AC¹, Typ 2 | öffentlich | dito | dito |
 | | | | `CH*360*E88187` | `CH/360/44187/149325` | 22 kW AC¹, Typ 2 | öffentlich | dito | dito |
-| 5 | 770 m | **Migros Muttenz**, Rothausstrasse (M-Charge) | `CH*MIG*E*246815` | – (nur OICP) | 22 kW AC, Typ 2 | öffentlich, Parkplatz kostenpflichtig | Ladenöffnung | keine Tarifdaten |
-| | | | `CH*MIG*E*246816` | – (nur OICP) | 22 kW AC, Typ 2 | dito | dito | keine Tarifdaten |
+| 5 | 770 m | **Migros Muttenz**, Rothausstrasse (M-Charge) | `CH*MIG*E*246815` | – (nur OICP) | 22 kW AC, Typ 2 | öffentlich, Parkplatz kostenpflichtig | Ladenöffnung | 0.38 CHF/kWh² |
+| | | | `CH*MIG*E*246816` | – (nur OICP) | 22 kW AC, Typ 2 | dito | dito | dito² |
 
 ¹ in der OCPI-API als `AC_1_PHASE` mit 22 kW gemeldet – vermutlich ein Datenfehler des Betreibers.
+
+² Ad-hoc-Preis aus der Website des Betreibers (Recherche 6.11.2026), erfasst in
+[`tarife.toml`](../tarife.toml) mit `verified = false` – vor Ort prüfen. Quellen und
+Belastbarkeit: [datenquellen.md](datenquellen.md#tarife-ohne-api-webscraping-und-manuelle-erfassung).
+Die Preise 1 und 2 stammen aus der BFE-API; dort ist die MWST-Angabe möglicherweise falsch
+(dann 0.36 bzw. 0.32 CHF/kWh brutto) – ebenfalls prüfen.
 
 **Zugang** ist das OICP-Feld `Accessibility`: *eingeschränkt* = „Restricted access“ (z.B.
 Firmenparkplatz, evtl. nur ausserhalb der Bürozeiten nutzbar), *öffentlich* = „Free
@@ -50,8 +56,8 @@ gemeldet.
 
 | Distanz | Standort | Ladepunkte | Hinweis |
 |---:|---|---|---|
-| 825–854 m | Abt Automobile AG, St. Jakobs-Strasse 72/80 (eCarUp) | 8× AC 22 kW, 2× DC 180 kW | Garage; 4 von 8 AC-Punkten aktuell „OutOfService“ |
-| 826 m | Shell, Hofackerstrasse 30 (Shell Recharge) | 2× AC 22 kW, DC 44 kW, DC 22 kW | Tankstelle, eingeschränkter Zugang |
+| 825–854 m | Abt Automobile AG, St. Jakobs-Strasse 72/80 (eCarUp) | 8× AC 22 kW, 2× DC 180 kW | Garage; 4 von 8 AC-Punkten aktuell „OutOfService“; Preis offen (nur App/QR) |
+| 826 m | Shell, Hofackerstrasse 30 (Shell Recharge) | 2× AC 22 kW, DC 44 kW, DC 22 kW | Tankstelle, eingeschränkter Zugang; ad hoc ab 0.69 (≤ 22 kW) / 0.79 CHF/kWh (> 22 kW) |
 
 ## Übrige Gemeinde Muttenz (> 1 km)
 
@@ -67,18 +73,19 @@ gemäss swisstopo (BFS-Nr. 2770).
 
 ## Datenabdeckung
 
-| Betreiber | Status live | Tarif in API |
+| Betreiber | Status live | Tarif |
 |---|---|---|
-| Swisscharge (CH\*SUI) | ✔ OCPI + OICP | ✔ |
-| IWB (CH\*IWB) | ✔ OCPI + OICP | ✘ Tarif-ID referenziert, Objekt fehlt noch |
-| Energie 360° (CH\*360) | ✔ OCPI + OICP | ✘ dito |
-| Migros M-Charge, MOVE, eCarUp, Shell, AVIA | ✔ nur OICP (2-min-Raster) | ✘ |
+| Swisscharge (CH\*SUI) | ✔ OCPI + OICP | BFE-API |
+| IWB (CH\*IWB) | ✔ OCPI + OICP | `tarife.toml` (Website IWB), API-Tarif fehlt noch |
+| Energie 360°/Coop (CH\*360) | ✔ OCPI + OICP | `tarife.toml` (Website Energie 360°), API-Tarif fehlt noch |
+| Migros M-Charge, Shell | ✔ nur OICP (2-min-Raster) | `tarife.toml` (Websites Migrol, Shell) |
+| MOVE, eCarUp, AVIA VOLT | ✔ nur OICP (2-min-Raster) | offen – nur an der Station / in der App |
 
 Die OCPI-API des BFE ist erst seit Ende Oktober 2026 in Betrieb; weitere Betreiber und
 Tarife kommen laufend dazu. Der Collector übernimmt neue Tarife automatisch (Katalog-
-Update alle 6 h). Bis dahin werden die Tarife manuell in [`tarife.toml`](../tarife.toml)
-erfasst – die Datei enthält bereits alle 19 offenen Einträge (Standorte, AC/DC getrennt)
-mit den EVSE-IDs, siehe [datenquellen.md](datenquellen.md).
+Update alle 6 h). Bis dahin stehen die Tarife in [`tarife.toml`](../tarife.toml): 12 von
+20 Einträgen sind per Webscraping/Recherche befüllt (ungeprüft), 8 sind offen (eCarUp,
+MOVE, AVIA VOLT), siehe [datenquellen.md](datenquellen.md).
 
 ## Überwachung
 

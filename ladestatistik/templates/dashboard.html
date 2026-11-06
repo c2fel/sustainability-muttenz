@@ -208,7 +208,11 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
   const meter = (v) => v == null ? '–' : `<span class="meter"><span class="track"><span class="fill" style="width:${Math.min(100, v * 100)}%"></span></span>${pct(v)}</span>`;
   const shortId = (id) => { const p = id.split('*'); return p.length > 2 ? p.slice(2).join('*') : id; };
   const ORIGIN = { api: 'BFE-API', manual: 'manuell erfasst' };
-  const originBadge = (o) => `<span class="badge">${o ? ORIGIN[o] : 'Tarif offen'}</span>`;
+  const originBadge = (o, verified, conf) => {
+    if (!o) return '<span class="badge">Tarif offen</span>';
+    if (o !== 'manual') return `<span class="badge">${ORIGIN[o]}</span>`;
+    return `<span class="badge">${verified ? 'manuell, geprüft' : 'manuell, ungeprüft'}${conf ? ' · Belastbarkeit ' + esc(conf) : ''}</span>`;
+  };
   const refs = (D.reference_sessions || []).filter((r) => r.id !== 'schnell');
   const refName = (r) => r.id[0].toUpperCase() + r.id.slice(1);
 
@@ -339,7 +343,7 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
   }
   $('site-cards').innerHTML = focusSites.map((s) => {
     const evs = s.evse_ids.map((id) => evById[id]).filter(Boolean);
-    const tariff = s.tariff ? `${esc(s.tariff)} ${originBadge(s.tariff_origin)}${s.tariff_source ? `<div class="muted small">Quelle: ${esc(s.tariff_source)}</div>` : ''}${s.tariff_mixed ? '<div class="muted small">Ladepunkte mit unterschiedlichen Tarifen</div>' : ''}` : originBadge(null);
+    const tariff = s.tariff ? `${esc(s.tariff)} ${originBadge(s.tariff_origin, s.tariff_verified, s.tariff_confidence)}${s.tariff_source ? `<div class="muted small">Quelle: ${s.tariff_url ? `<a href="${esc(s.tariff_url)}" rel="noopener">${esc(s.tariff_source)}</a>` : esc(s.tariff_source)}</div>` : ''}${s.tariff_mixed ? '<div class="muted small">Ladepunkte mit unterschiedlichen Tarifen</div>' : ''}` : originBadge(null);
     const ref = refs.map((r) => `${refName(r)} CHF ${chf(s.ref_prices[r.id])}`).join(' · ');
     return `<section class="card">
       <div class="site-head"><h3>${esc(s.site_name)}</h3><span class="dist">${nf(s.distance_m)} m Luftlinie</span></div>
@@ -378,11 +382,11 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
   // ---------- Alle Standorte der Gemeinde
   const M = D.municipality || {}, tc = M.tariff_coverage || {};
   $('all-title').textContent = `Alle Ladestandorte in ${M.name || 'der Gemeinde'}`;
-  $('all-lead').innerHTML = `${nf(M.n_sites)} Standorte, ${nf(M.n_evse)} Ladepunkte (${nf(M.n_ac)} AC, ${nf(M.n_dc)} DC). Tarife: ${nf(tc.api)} aus der BFE-API, ${nf(tc.manual)} manuell erfasst, <b>${nf(tc.missing)} offen</b>. Orange markiert = Nahbereich.`;
+  $('all-lead').innerHTML = `${nf(M.n_sites)} Standorte, ${nf(M.n_evse)} Ladepunkte (${nf(M.n_ac)} AC, ${nf(M.n_dc)} DC). Tarife: ${nf(tc.api)} aus der BFE-API, ${nf(tc.manual)} manuell erfasst (davon ${nf(tc.manual_unverified)} ungeprüft), <b>${nf(tc.missing)} offen</b>. Orange markiert = Nahbereich.`;
   const sites = D.sites || [];
   $('all-sites').innerHTML = sites.length ? '<table><tr><th class="num">Distanz</th><th style="min-width:220px">Standort</th><th>Ladepunkte</th><th>Auslastung</th><th class="num">Vorgänge/Tag</th><th class="num">Median Standzeit</th><th class="num">Kein LP frei</th><th style="min-width:190px">Tarif (inkl. MWST)</th>' +
     refs.map((r) => `<th class="num">${refName(r)}</th>`).join('') + '</tr>' +
-    sites.map((s) => `<tr class="${s.is_focus ? 'focus' : ''}"><td class="num">${nf(s.distance_m)} m</td><td>${esc(s.site_name)}<div class="muted small">${esc(s.address)}<br>${esc(s.operator)} · Zugang ${esc(access(s.access))}</div></td><td class="small">${esc(s.power)}</td><td>${meter(s.utilization)}</td><td class="num">${nf(s.sessions_per_day, 1)}</td><td class="num">${mins(s.median_session_min)}</td><td class="num">${pct(s.full_share, 1)}</td><td class="small">${s.tariff ? esc(s.tariff) + '<br>' + originBadge(s.tariff_origin) : originBadge(null)}</td>` +
+    sites.map((s) => `<tr class="${s.is_focus ? 'focus' : ''}"><td class="num">${nf(s.distance_m)} m</td><td>${esc(s.site_name)}<div class="muted small">${esc(s.address)}<br>${esc(s.operator)} · Zugang ${esc(access(s.access))}</div></td><td class="small">${esc(s.power)}</td><td>${meter(s.utilization)}</td><td class="num">${nf(s.sessions_per_day, 1)}</td><td class="num">${mins(s.median_session_min)}</td><td class="num">${pct(s.full_share, 1)}</td><td class="small">${s.tariff ? esc(s.tariff) + '<br>' + originBadge(s.tariff_origin, s.tariff_verified, s.tariff_confidence) : originBadge(null)}</td>` +
       refs.map((r) => `<td class="num">${chf(s.ref_prices[r.id])}</td>`).join('') + '</tr>').join('') + '</table>'
     : '<p class="empty">Noch keine Daten.</p>';
   $('refnote').textContent = 'Kosten in CHF inkl. MWST für Referenz-Ladevorgänge: ' + refs.map((r) => `${refName(r)} = ${r.label}`).join(' · ') + '.';

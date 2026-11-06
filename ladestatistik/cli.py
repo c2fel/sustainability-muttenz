@@ -7,6 +7,7 @@ Befehle:
   publish          Web-Root erzeugen (Übersicht + reports/charging/ mit Dashboard und Daten)
   serve            Web-Root lokal ausliefern (für den Cloudflare-Tunnel)
   tariff-template  Vorlage für manuelle Tarife (tarife.toml) erzeugen/ergänzen
+  tariff-check     Preisseiten der Betreiber abrufen und mit tarife.toml vergleichen
   health           Zustand der Datenbank, letzte Polls, Tarifabdeckung
 """
 
@@ -182,6 +183,32 @@ def cmd_tariff_template(args) -> int:
     return 0
 
 
+def cmd_tariff_check(args) -> int:
+    from . import pricewatch
+    cfg = _cfg(args)
+    result = pricewatch.fetch_all()
+    snap = pricewatch.save_snapshot(result, cfg.cache_dir.parent / "pricewatch")
+    print(f"Snapshot: {snap}")
+    for sid, r in result.items():
+        state = f"FEHLER: {r['error']}" if r.get("error") else f"{len(r.get('values') or {})} Werte"
+        print(f"  {sid:<11} {state}  ({r['url']})")
+    rows = pricewatch.compare(cfg.manual_specs, result)
+    if not rows:
+        print("Keine Einträge mit 'watch' in der Tarifdatei.")
+        return 0
+    print()
+    print(f"{'Status':<11} {'Feld':<19} {'tarife.toml':>11} {'Website':>8}  Standort")
+    for r in sorted(rows, key=lambda r: (r["status"] == "ok", r["site"])):
+        fmt = lambda v: "–" if v is None else f"{float(v):g}"
+        print(f"{r['status']:<11} {r['field']:<19} {fmt(r['tarife_toml']):>11} {fmt(r['website']):>8}  "
+              f"{r['site'][:60]}")
+    bad = [r for r in rows if r["status"] in ("abweichung", "fehler")]
+    if bad:
+        print(f"\n{len(bad)} Abweichung(en)/Fehler: Preis prüfen und in tarife.toml einen neuen "
+              f"Eintrag mit neuem valid_from erfassen (den alten stehen lassen).")
+    return 1 if bad else 0
+
+
 def cmd_health(args) -> int:
     from .analyze import api_tariff_evses, current_tariffs
     cfg = _cfg(args)
@@ -212,6 +239,9 @@ def cmd_health(args) -> int:
     missing = sorted(eid for eid in scope if eid not in tariffs)
     if missing:
         print("  ohne Tarif: " + ", ".join(missing))
+    unverified = sorted({m.site or m.evse_ids[0] for m in cfg.manual_tariffs if not m.verified})
+    if unverified:
+        print(f"  {len(unverified)} manuelle Einträge noch nicht geprüft (verified = false)")
     overrides = sorted(eid for eid in scope
                        if tariffs.get(eid, {}).get("_origin") == "manual" and eid in api_ids)
     if overrides:
@@ -258,6 +288,9 @@ def main(argv=None) -> int:
     t.add_argument("--out", help="Datei ergänzen (z.B. tarife.toml) statt Ausgabe auf stdout")
     t.add_argument("--all", action="store_true", help="auch Standorte mit API-Tarif")
     t.set_defaults(fn=cmd_tariff_template)
+
+    tc = sub.add_parser("tariff-check", help="Preisseiten abrufen und mit tarife.toml vergleichen")
+    tc.set_defaults(fn=cmd_tariff_check)
 
     h = sub.add_parser("health", help="Zustand der Datenbank")
     h.set_defaults(fn=cmd_health)

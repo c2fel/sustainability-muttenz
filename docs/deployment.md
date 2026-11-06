@@ -41,7 +41,7 @@ sudo -u ladestatistik mkdir -p data site
 sudo -u ladestatistik python3 -m ladestatistik -c config.toml collect --once   # Test
 sudo cp deploy/systemd/*.service deploy/systemd/*.timer /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now ladestatistik-collector ladestatistik-web ladestatistik-publish.timer
+sudo systemctl enable --now ladestatistik-collector ladestatistik-web ladestatistik-publish.timer ladestatistik-tariffcheck.timer
 python3 -m ladestatistik -c config.toml health
 ```
 
@@ -50,6 +50,10 @@ Update: `cd /opt/ladestatistik && sudo -u ladestatistik git pull && sudo systemc
 
 Geänderte Preise in `tarife.toml` (z.B. per `git pull`) braucht keinen Neustart:
 der nächste Publish-Lauf (alle 15 min) liest die Datei neu.
+
+Der Preis-Check (`ladestatistik-tariffcheck.timer`, täglich 06:17) vergleicht die
+Preisseiten der Betreiber mit `tarife.toml`; bei einer Abweichung schlägt der Dienst fehl
+(`systemctl --failed`, `journalctl -u ladestatistik-tariffcheck`).
 
 ## B – Docker Compose
 

@@ -1,20 +1,31 @@
-# Manuell erfasste Tarife (Bruttopreise in CHF inkl. MWST, wie in App/Display angezeigt)
+# Manuell erfasste Tarife – Gemeinde Muttenz
+# Bruttopreise in CHF inkl. MWST, Modell AD HOC: ohne Abo, ohne Konto/App
+# (Kreditkarte, TWINT, QR-Code oder Terminal an der Station). Hat ein Betreiber
+# mehrere Preismodelle, gilt immer das Ad-hoc-Modell.
 #
-# - Ein [[manual_tariff]]-Eintrag gilt ab valid_from (Datum, an dem der Preis gilt bzw.
-#   geprüft wurde) für alle evse_ids des Eintrags.
+# Erstbefüllung 2026-11-06 per Webscraping/Recherche der Betreiber-Websites.
+# Jeder Eintrag trägt verified = false, bis er vor Ort oder in der App bestätigt ist:
+# dann verified = true setzen (Preis ggf. korrigieren).
+#
+# - Ein [[manual_tariff]]-Eintrag gilt ab valid_from für alle evse_ids des Eintrags.
 # - Preisänderung: Eintrag kopieren, neues valid_from und neue Preise eintragen, den alten
 #   Eintrag stehen lassen. So entsteht der Preisverlauf für die Vorher/Nachher-Auswertung.
 # - Einträge ohne valid_from oder ohne Preisfeld gelten als "offen" und werden ignoriert.
 # - Ein manueller Tarif hat Vorrang vor einem Tarif aus der BFE-API.
 #
-# Felder (alle optional ausser valid_from + mindestens ein Preis):
+# Felder:
 #   energy_chf_kwh      Preis pro kWh
 #   time_chf_h          Zeitpreis pro Stunde ab Minute 0 (Anschlussdauer)
 #   blocking_chf_h      Zeitpreis pro Stunde ab blocking_after_min (ersetzt time_chf_h)
 #   blocking_after_min  Minuten ohne Blockiergebühr
 #   blocking_start/_end Blockiergebühr nur in diesem Zeitfenster, z.B. "08:00"/"20:00"
 #   flat_chf            Start-/Sessionsgebühr pro Ladevorgang
-#   source              Quelle, z.B. "IWB-App, Screenshot 2026-11-10"
+#   source, url         Quelle (Text) und Link
+#   confidence          hoch | mittel | tief – wie gut belegt ist der Preis für genau diese Station
+#   verified            true, sobald der Preis an der Station / in der App bestätigt ist
+#   note                Begründung, Annahmen, was zu prüfen ist
+#   watch               Verknüpfung mit dem Preis-Watcher, z.B. { energy_chf_kwh = "migrol:lt22" }
+#                       -> python -m ladestatistik -c config.toml tariff-check
 #
 # Neue Stationen ergänzen:
 #   python -m ladestatistik -c config.toml tariff-template --out tarife.toml
@@ -22,43 +33,45 @@
 [[manual_tariff]]
 site = "IWB - Jakob Eglin-Strasse Muttenz, Jakob-Eglin-Strasse / Hauptstrasse 80 (540 m)"
 evse_ids = ["CH*IWB*E55318", "CH*IWB*E55319"]
-# 2 Ladepunkt(e), 22 kW AC · IWB · Zugang: öffentlich
-# valid_from = "2026-11-__"
-# source = ""
-# energy_chf_kwh = 
-# time_chf_h = 
-# blocking_chf_h = 
-# blocking_after_min = 
-# flat_chf = 
+valid_from = "2026-11-06"
+energy_chf_kwh = 0.48
+source = "IWB-Website 'Preise öffentliches Laden Allmend Basel-Stadt', AC 48 Rp./kWh, keine Blockiergebühr, gilt bei Einmalzahlung Kreditkarte/TWINT; abgerufen 2026-11-06"
+url = "https://www.iwb.ch/servicecenter/oeffentliches-ladenetz/mobilitaet-tarife"
+confidence = "mittel"
+verified = false
+note = "Publiziert für Basel-Stadt. Die Muttenzer IWB-Ladepunkte verwenden laut BFE-API dieselbe Tarif-ID 179904 wie die Basler Allmend-Stationen – Übertragung naheliegend, an der Station prüfen."
+watch = { energy_chf_kwh = "iwb:ac.energy" }
 
 [[manual_tariff]]
 site = "JOYA Coop Muttenz Dorf, Brühlweg 8 4132 Muttenz CH (561 m)"
 evse_ids = ["CH*360*E88149", "CH*360*E88150", "CH*360*E88186", "CH*360*E88187"]
-# 4 Ladepunkt(e), 22 kW AC · JOYA (Energie 360) · Zugang: öffentlich
-# valid_from = "2026-11-__"
-# source = ""
-# energy_chf_kwh = 
-# time_chf_h = 
-# blocking_chf_h = 
-# blocking_after_min = 
-# flat_chf = 
+valid_from = "2026-11-06"
+energy_chf_kwh = 0.39
+# blocking_chf_h = 6.0   # siehe note
+# blocking_after_min = 360   # siehe note
+source = "Energie 360°/Easycharge-Preisübersicht (inkl. MWST): AC ≤ 22 kW CHF 0.39/kWh an Coop-Standorten; abgerufen 2026-11-06"
+url = "https://www.energie360.ch/de/leistungen/mobilitaet/easycharge/"
+confidence = "mittel"
+verified = false
+note = "Seite unterscheidet an Coop-Standorten nicht zwischen ad hoc und registriert. Blockiergebühr: Seite nennt für AC allgemein CHF 6.–/h nach 6 h; für Coop nicht bestätigt (Coop-DC laut BFE-API: CHF 3.–/h nach 3 h) – daher nicht eingetragen, an der Station prüfen."
+watch = { energy_chf_kwh = "energie360:ac.coop" }
 
 [[manual_tariff]]
 site = "Migros | Muttenz 1, Rothausstrasse (770 m)"
 evse_ids = ["CH*MIG*E*246815", "CH*MIG*E*246816"]
-# 2 Ladepunkt(e), 22 kW AC · M-Charge · Zugang: öffentlich, Parkplatz kostenpflichtig
-# valid_from = "2026-11-__"
-# source = ""
-# energy_chf_kwh = 
-# time_chf_h = 
-# blocking_chf_h = 
-# blocking_after_min = 
-# flat_chf = 
+valid_from = "2026-11-06"
+energy_chf_kwh = 0.38
+source = "Migrol, Preistabelle M-Charge (inkl. MWST): < 22 kW CHF 0.38/kWh; gilt laut derselben Seite auch 'Ohne Konto' per QR-Code (anonym); abgerufen 2026-11-06"
+url = "https://www.migrol.ch/migros-aufladen"
+confidence = "hoch"
+verified = false
+note = "Ladepunkte nur zu Ladenöffnungszeiten nutzbar (Mo–Fr 08–19/20, Sa 07:30–18)."
+watch = { energy_chf_kwh = "migrol:lt22" }
 
 [[manual_tariff]]
 site = "Abt Automobile AG Aftersales, St. Jakobs-Strasse 72 (825 m)"
 evse_ids = ["CH*ECUEH8DSMGPJAV8PDBDDLUAWFBMYXX", "CH*ECUEPVUBRWV8T26EL6LU4YZLY26AFA", "CH*ECUETJ8ZVF4LX537A52F7X84WTLTYS", "CH*ECUEX7Y62D76WS7SW7CFQ3AU2NMDFA"]
-# 4 Ladepunkt(e), 22 kW AC · eCarUp · Zugang: öffentlich
+# OFFEN: eCarUp: Preis legt der Stationsbetreiber (Abt Automobile) fest und ist nirgends öffentlich. Ad hoc: QR-Code an der Station scannen (ohne Konto) – der Preis wird vor der Zahlung angezeigt. Nur Referenz, nicht ad hoc: Swisscharge-Roaming eCarUp AC 0.81 / DC 1.19 CHF/kWh (Jan. 2026).
 # valid_from = "2026-11-__"
 # source = ""
 # energy_chf_kwh = 
@@ -68,33 +81,45 @@ evse_ids = ["CH*ECUEH8DSMGPJAV8PDBDDLUAWFBMYXX", "CH*ECUEPVUBRWV8T26EL6LU4YZLY26
 # flat_chf = 
 
 [[manual_tariff]]
-site = "Shell evpass Münsterplatz, Hofackerstrasse 30 (826 m) – DC"
-evse_ids = ["CH*SHE*E11664*1", "CH*SHE*E11694*1"]
-# 2 Ladepunkt(e), 22 kW DC, 44 kW DC · Shell Recharge · Zugang: eingeschränkt
-# valid_from = "2026-11-__"
-# source = ""
-# energy_chf_kwh = 
-# time_chf_h = 
-# blocking_chf_h = 
-# blocking_after_min = 
-# flat_chf = 
+site = "Shell evpass Münsterplatz, Hofackerstrasse 30 (826 m) – DC 22 kW"
+evse_ids = ["CH*SHE*E11694*1"]
+valid_from = "2026-11-06"
+energy_chf_kwh = 0.69
+source = "Shell Recharge Schweiz, Modell 'Ohne App – QR-Code oder Zahlungsterminal': ≤ 22 kW ab CHF 0.69/kWh (Preis nach max. Leistung der Station); abgerufen 2026-11-06"
+url = "https://www.shell.ch/de_ch/laden/ladetarife-fuer-ihr-elektroauto.html"
+confidence = "mittel"
+verified = false
+note = "Shell nennt 'ab'-Preise; der Preis an der Station kann höher sein. Blockiergebühr nur an Stationen ab 100 kW (hier nicht). OICP-Zugang: eingeschränkt."
+watch = { energy_chf_kwh = "shell:adhoc.le22" }
+
+[[manual_tariff]]
+site = "Shell evpass Münsterplatz, Hofackerstrasse 30 (826 m) – DC 44 kW"
+evse_ids = ["CH*SHE*E11664*1"]
+valid_from = "2026-11-06"
+energy_chf_kwh = 0.79
+source = "Shell Recharge Schweiz, Modell 'Ohne App – QR-Code oder Zahlungsterminal': > 22 kW ab CHF 0.79/kWh (Preis nach max. Leistung der Station); abgerufen 2026-11-06"
+url = "https://www.shell.ch/de_ch/laden/ladetarife-fuer-ihr-elektroauto.html"
+confidence = "mittel"
+verified = false
+note = "Shell nennt 'ab'-Preise; der Preis an der Station kann höher sein. Blockiergebühr nur an Stationen ab 100 kW (hier nicht). OICP-Zugang: eingeschränkt."
+watch = { energy_chf_kwh = "shell:adhoc.gt22" }
 
 [[manual_tariff]]
 site = "Shell evpass Münsterplatz, Hofackerstrasse 30 (826 m)"
 evse_ids = ["CH*SHE*E1013*1", "CH*SHE*E1013*2"]
-# 2 Ladepunkt(e), 22 kW AC · Shell Recharge · Zugang: eingeschränkt
-# valid_from = "2026-11-__"
-# source = ""
-# energy_chf_kwh = 
-# time_chf_h = 
-# blocking_chf_h = 
-# blocking_after_min = 
-# flat_chf = 
+valid_from = "2026-11-06"
+energy_chf_kwh = 0.69
+source = "Shell Recharge Schweiz, Modell 'Ohne App – QR-Code oder Zahlungsterminal': ≤ 22 kW ab CHF 0.69/kWh; abgerufen 2026-11-06"
+url = "https://www.shell.ch/de_ch/laden/ladetarife-fuer-ihr-elektroauto.html"
+confidence = "mittel"
+verified = false
+note = "Shell nennt 'ab'-Preise; der Preis an der Station kann höher sein. Blockiergebühr nur an Stationen ab 100 kW (hier nicht). OICP-Zugang: eingeschränkt."
+watch = { energy_chf_kwh = "shell:adhoc.le22" }
 
 [[manual_tariff]]
 site = "Abt Automobile AG, ABB Terra AC 22kW (Parkplatz-Nr, St. Jakobs-Strasse 80 (842 m)"
 evse_ids = ["CH*ECUE3LHPMCT5CC7LRNJEN3VSH4VYL3", "CH*ECUE3Y82UTHP889LNDZWDC9TAFXVNQ", "CH*ECUEFFW6RNCQ999FZLGJDCGB5PVHM3", "CH*ECUEXL8QQWN8DAP33QVVGFC5MWDDXW"]
-# 4 Ladepunkt(e), 22 kW AC · eCarUp · Zugang: öffentlich
+# OFFEN: eCarUp: Preis legt der Stationsbetreiber (Abt Automobile) fest und ist nirgends öffentlich. Ad hoc: QR-Code an der Station scannen (ohne Konto) – der Preis wird vor der Zahlung angezeigt. Nur Referenz, nicht ad hoc: Swisscharge-Roaming eCarUp AC 0.81 / DC 1.19 CHF/kWh (Jan. 2026).
 # valid_from = "2026-11-__"
 # source = ""
 # energy_chf_kwh = 
@@ -106,7 +131,7 @@ evse_ids = ["CH*ECUE3LHPMCT5CC7LRNJEN3VSH4VYL3", "CH*ECUE3Y82UTHP889LNDZWDC9TAFX
 [[manual_tariff]]
 site = "Abt Automobile AG, ABB Terra DC 180kW, St. Jakobs-Strasse 72 (849 m) – DC"
 evse_ids = ["CH*ECUE248VZXV63RPHYJZQAW57RHP6QX", "CH*ECUERTJC2PKKRMFEKWCXP5M52HUMRW"]
-# 2 Ladepunkt(e), 180 kW DC · eCarUp · Zugang: öffentlich
+# OFFEN: eCarUp: Preis legt der Stationsbetreiber (Abt Automobile) fest und ist nirgends öffentlich. Ad hoc: QR-Code an der Station scannen (ohne Konto) – der Preis wird vor der Zahlung angezeigt. Nur Referenz, nicht ad hoc: Swisscharge-Roaming eCarUp AC 0.81 / DC 1.19 CHF/kWh (Jan. 2026).
 # valid_from = "2026-11-__"
 # source = ""
 # energy_chf_kwh = 
@@ -118,31 +143,31 @@ evse_ids = ["CH*ECUE248VZXV63RPHYJZQAW57RHP6QX", "CH*ECUERTJC2PKKRMFEKWCXP5M52HU
 [[manual_tariff]]
 site = "IWB - Hauptstrasse 2 Muttenz, Hauptstrasse 2 (1059 m)"
 evse_ids = ["CH*IWB*E55311", "CH*IWB*E55312"]
-# 2 Ladepunkt(e), 22 kW AC · IWB · Zugang: öffentlich
-# valid_from = "2026-11-__"
-# source = ""
-# energy_chf_kwh = 
-# time_chf_h = 
-# blocking_chf_h = 
-# blocking_after_min = 
-# flat_chf = 
+valid_from = "2026-11-06"
+energy_chf_kwh = 0.48
+source = "IWB-Website 'Preise öffentliches Laden Allmend Basel-Stadt', AC 48 Rp./kWh, keine Blockiergebühr, gilt bei Einmalzahlung Kreditkarte/TWINT; abgerufen 2026-11-06"
+url = "https://www.iwb.ch/servicecenter/oeffentliches-ladenetz/mobilitaet-tarife"
+confidence = "mittel"
+verified = false
+note = "Publiziert für Basel-Stadt. Die Muttenzer IWB-Ladepunkte verwenden laut BFE-API dieselbe Tarif-ID 179904 wie die Basler Allmend-Stationen – Übertragung naheliegend, an der Station prüfen."
+watch = { energy_chf_kwh = "iwb:ac.energy" }
 
 [[manual_tariff]]
 site = "IWB - Grendelweg / Hallenbad Muttenz, Grendelweg (1125 m)"
 evse_ids = ["CH*IWB*E55352", "CH*IWB*E55353"]
-# 2 Ladepunkt(e), 22 kW AC · IWB · Zugang: eingeschränkt
-# valid_from = "2026-11-__"
-# source = ""
-# energy_chf_kwh = 
-# time_chf_h = 
-# blocking_chf_h = 
-# blocking_after_min = 
-# flat_chf = 
+valid_from = "2026-11-06"
+energy_chf_kwh = 0.48
+source = "IWB-Website 'Preise öffentliches Laden Allmend Basel-Stadt', AC 48 Rp./kWh, keine Blockiergebühr, gilt bei Einmalzahlung Kreditkarte/TWINT; abgerufen 2026-11-06"
+url = "https://www.iwb.ch/servicecenter/oeffentliches-ladenetz/mobilitaet-tarife"
+confidence = "mittel"
+verified = false
+note = "Publiziert für Basel-Stadt. Die Muttenzer IWB-Ladepunkte verwenden laut BFE-API dieselbe Tarif-ID 179904 wie die Basler Allmend-Stationen – Übertragung naheliegend, an der Station prüfen."
+watch = { energy_chf_kwh = "iwb:ac.energy" }
 
 [[manual_tariff]]
 site = "MOVE - Infrapark Baselland, Rothausstrasse 61 (1190 m)"
 evse_ids = ["CH*CCC*E50098", "CH*CCC*E50099"]
-# 2 Ladepunkt(e), 22 kW AC · Move · Zugang: öffentlich, Parkplatz kostenpflichtig
+# OFFEN: MOVE (seit 1.10.2026 JOYA): Ad-hoc-Preis (Kreditkarte/QR ohne Konto) nicht publiziert. Nur Referenz: 'MOVE light' (Konto ohne Grundgebühr) AC ab CHF 0.57/kWh, https://move.ch/de/privat/abos/move-light.php. An der Station per QR-Code prüfen; Parkplatz kostenpflichtig.
 # valid_from = "2026-11-__"
 # source = ""
 # energy_chf_kwh = 
@@ -154,7 +179,7 @@ evse_ids = ["CH*CCC*E50098", "CH*CCC*E50099"]
 [[manual_tariff]]
 site = "MOVE - Muttenz Rennbahnklinik, Kriegackerstrasse 100 (1205 m)"
 evse_ids = ["CH*CCI*E20321", "CH*CCI*E20322"]
-# 2 Ladepunkt(e), 22 kW AC · Move · Zugang: öffentlich, Parkplatz kostenpflichtig
+# OFFEN: MOVE (seit 1.10.2026 JOYA): Ad-hoc-Preis (Kreditkarte/QR ohne Konto) nicht publiziert. Nur Referenz: 'MOVE light' (Konto ohne Grundgebühr) AC ab CHF 0.57/kWh, https://move.ch/de/privat/abos/move-light.php. An der Station per QR-Code prüfen; Parkplatz kostenpflichtig.
 # valid_from = "2026-11-__"
 # source = ""
 # energy_chf_kwh = 
@@ -166,7 +191,7 @@ evse_ids = ["CH*CCI*E20321", "CH*CCI*E20322"]
 [[manual_tariff]]
 site = "AVIA VOLT Suisse AG Rennbahn Trimag Muttenz, Birsfelderstrasse 44 (1240 m)"
 evse_ids = ["CH*AVI*E10051", "CH*AVI*E10052", "CH*AVI*E10053"]
-# 3 Ladepunkt(e), 22 kW AC · AVIA VOLT Suisse AG · Zugang: eingeschränkt
+# OFFEN: AVIA VOLT: Stationsbetreiber legt den Preis fest, nur in der AVIA-VOLT-App sichtbar. Zugang laut BFE eingeschränkt. Nur Referenz, nicht ad hoc: Swisscharge-Roaming AVIA VOLT AC 0.50 CHF/kWh (Jan. 2026).
 # valid_from = "2026-11-__"
 # source = ""
 # energy_chf_kwh = 
@@ -178,19 +203,19 @@ evse_ids = ["CH*AVI*E10051", "CH*AVI*E10052", "CH*AVI*E10053"]
 [[manual_tariff]]
 site = "IWB - Lutzertstrasse 33 Muttenz, Lutzerstrasse 33 (1276 m)"
 evse_ids = ["CH*IWB*E55327", "CH*IWB*E55328"]
-# 2 Ladepunkt(e), 22 kW AC · IWB · Zugang: öffentlich
-# valid_from = "2026-11-__"
-# source = ""
-# energy_chf_kwh = 
-# time_chf_h = 
-# blocking_chf_h = 
-# blocking_after_min = 
-# flat_chf = 
+valid_from = "2026-11-06"
+energy_chf_kwh = 0.48
+source = "IWB-Website 'Preise öffentliches Laden Allmend Basel-Stadt', AC 48 Rp./kWh, keine Blockiergebühr, gilt bei Einmalzahlung Kreditkarte/TWINT; abgerufen 2026-11-06"
+url = "https://www.iwb.ch/servicecenter/oeffentliches-ladenetz/mobilitaet-tarife"
+confidence = "mittel"
+verified = false
+note = "Publiziert für Basel-Stadt. Die Muttenzer IWB-Ladepunkte verwenden laut BFE-API dieselbe Tarif-ID 179904 wie die Basler Allmend-Stationen – Übertragung naheliegend, an der Station prüfen."
+watch = { energy_chf_kwh = "iwb:ac.energy" }
 
 [[manual_tariff]]
 site = "MOVE - Muttenz, Hofackerstrasse 72 (1338 m)"
 evse_ids = ["CH*CCI*E20116", "CH*CCI*E20117"]
-# 2 Ladepunkt(e), 22 kW AC · Move · Zugang: öffentlich, Parkplatz kostenpflichtig
+# OFFEN: MOVE (seit 1.10.2026 JOYA): Ad-hoc-Preis (Kreditkarte/QR ohne Konto) nicht publiziert. Nur Referenz: 'MOVE light' (Konto ohne Grundgebühr) AC ab CHF 0.57/kWh, https://move.ch/de/privat/abos/move-light.php. An der Station per QR-Code prüfen; Parkplatz kostenpflichtig.
 # valid_from = "2026-11-__"
 # source = ""
 # energy_chf_kwh = 
@@ -202,43 +227,47 @@ evse_ids = ["CH*CCI*E20116", "CH*CCI*E20117"]
 [[manual_tariff]]
 site = "JOYA Coop Muttenz Freidorf, St. Jakobstrasse 155 4132 Muttenz CH (1710 m)"
 evse_ids = ["CH*360*E89598", "CH*360*E89599"]
-# 2 Ladepunkt(e), 22 kW AC · JOYA (Energie 360) · Zugang: öffentlich
-# valid_from = "2026-11-__"
-# source = ""
-# energy_chf_kwh = 
-# time_chf_h = 
-# blocking_chf_h = 
-# blocking_after_min = 
-# flat_chf = 
+valid_from = "2026-11-06"
+energy_chf_kwh = 0.39
+# blocking_chf_h = 6.0   # siehe note
+# blocking_after_min = 360   # siehe note
+source = "Energie 360°/Easycharge-Preisübersicht (inkl. MWST): AC ≤ 22 kW CHF 0.39/kWh an Coop-Standorten; abgerufen 2026-11-06"
+url = "https://www.energie360.ch/de/leistungen/mobilitaet/easycharge/"
+confidence = "mittel"
+verified = false
+note = "Seite unterscheidet an Coop-Standorten nicht zwischen ad hoc und registriert. Blockiergebühr: Seite nennt für AC allgemein CHF 6.–/h nach 6 h; für Coop nicht bestätigt (Coop-DC laut BFE-API: CHF 3.–/h nach 3 h) – daher nicht eingetragen, an der Station prüfen."
+watch = { energy_chf_kwh = "energie360:ac.coop" }
 
 [[manual_tariff]]
 site = "IWB - Waldhaus beider Basel, In der Hard (1727 m) – DC"
 evse_ids = ["CH*IWB*E46250", "CH*IWB*E46250*1"]
-# 2 Ladepunkt(e), 24 kW DC · IWB · Zugang: öffentlich
-# valid_from = "2026-11-__"
-# source = ""
-# energy_chf_kwh = 
-# time_chf_h = 
-# blocking_chf_h = 
-# blocking_after_min = 
-# flat_chf = 
+valid_from = "2026-11-06"
+energy_chf_kwh = 0.6
+blocking_chf_h = 9.0
+blocking_after_min = 150
+source = "IWB-Website 'Allmend Basel-Stadt': DC bis 50 kW 60 Rp./kWh, nach 150 Minuten 15 Rp./Min. (= CHF 9.–/h); abgerufen 2026-11-06"
+url = "https://www.iwb.ch/servicecenter/oeffentliches-ladenetz/mobilitaet-tarife"
+confidence = "mittel"
+verified = false
+note = "DC-Tarif-ID 179908 wird laut BFE-API auch für die Basler Allmend-DC-Lader verwendet. Lader aktuell 'OUTOFORDER'."
+watch = { energy_chf_kwh = "iwb:dc50.energy", blocking_chf_h = "iwb:dc50.blocking_chf_h", blocking_after_min = "iwb:dc50.blocking_after_min" }
 
 [[manual_tariff]]
 site = "IWB - Waldhaus beider Basel, In der Hard (1727 m)"
 evse_ids = ["CH*IWB*E46251"]
-# 1 Ladepunkt(e), 22 kW AC · IWB · Zugang: öffentlich
-# valid_from = "2026-11-__"
-# source = ""
-# energy_chf_kwh = 
-# time_chf_h = 
-# blocking_chf_h = 
-# blocking_after_min = 
-# flat_chf = 
+valid_from = "2026-11-06"
+energy_chf_kwh = 0.48
+source = "IWB-Website 'Preise öffentliches Laden Allmend Basel-Stadt', AC 48 Rp./kWh, keine Blockiergebühr, gilt bei Einmalzahlung Kreditkarte/TWINT; abgerufen 2026-11-06"
+url = "https://www.iwb.ch/servicecenter/oeffentliches-ladenetz/mobilitaet-tarife"
+confidence = "mittel"
+verified = false
+note = "Publiziert für Basel-Stadt. Die Muttenzer IWB-Ladepunkte verwenden laut BFE-API dieselbe Tarif-ID 179904 wie die Basler Allmend-Stationen – Übertragung naheliegend, an der Station prüfen."
+watch = { energy_chf_kwh = "iwb:ac.energy" }
 
 [[manual_tariff]]
 site = "Primeo Energie – Vitra AG, Klünenfeldstrasse 22 (1942 m)"
 evse_ids = ["CH*CCI*E20975", "CH*CCI*E20976", "CH*CCI*E20977", "CH*CCI*E20978"]
-# 4 Ladepunkt(e), 11 kW AC · Move · Zugang: öffentlich, Parkplatz kostenpflichtig
+# OFFEN: MOVE (seit 1.10.2026 JOYA): Ad-hoc-Preis (Kreditkarte/QR ohne Konto) nicht publiziert. Nur Referenz: 'MOVE light' (Konto ohne Grundgebühr) AC ab CHF 0.57/kWh, https://move.ch/de/privat/abos/move-light.php. An der Station per QR-Code prüfen; Parkplatz kostenpflichtig.
 # valid_from = "2026-11-__"
 # source = ""
 # energy_chf_kwh = 

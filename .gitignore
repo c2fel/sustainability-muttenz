@@ -224,6 +224,7 @@ config.toml
 data/*.sqlite
 data/*.sqlite-*
 data/cache/
+data/pricewatch/
 publish-repo/
 deploy/homeassistant-addon/ladestatistik/ladestatistik/
 deploy/homeassistant-addon/ladestatistik/config.example.toml

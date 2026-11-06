@@ -61,21 +61,66 @@ requires permission of the data owner.*
   [ich-tanke-strom@bfe.admin.ch](mailto:ich-tanke-strom@bfe.admin.ch), bevor
   Auswertungen öffentlich publiziert werden.
 
-## Lücken: Tarife ohne API
+## Tarife ohne API: Webscraping und manuelle Erfassung
 
 In Muttenz liefert die BFE-API zurzeit nur für 3 von 49 Ladepunkten einen Tarif
-(Swisscharge-Gastgeber). Für die übrigen Standorte (IWB, Coop/Energie 360°, Migros, MOVE,
-eCarUp, Shell, AVIA):
+(Swisscharge-Gastgeber). Für die übrigen Standorte wurden am **6.11.2026** die Websites der
+Betreiber ausgewertet und die Ergebnisse in [`tarife.toml`](../tarife.toml) eingetragen –
+jeweils mit `source`, `url`, `confidence`, `note` und `verified = false`.
 
-1. **Manuell erfassen** in [`tarife.toml`](../tarife.toml): Die Datei enthält bereits
-   für jeden Standort ohne API-Tarif einen Eintrag mit den EVSE-IDs; nur Preise, Datum
-   und Quelle ergänzen (Preise aus der jeweiligen App bzw. am Display ablesen).
-   Neue Stationen ergänzt
-   `python -m ladestatistik -c config.toml tariff-template --out tarife.toml`.
-2. **Abwarten**: IWB und Energie 360° liefern bereits Tarif-IDs – die Tarifobjekte
-   dürften in der API nachgereicht werden. Der Collector erkennt das automatisch;
-   `health` meldet, wo ein manueller Eintrag einen API-Tarif überdeckt.
-3. **Webscraping** (nur falls nötig): vorher Nutzungsbedingungen der jeweiligen
-   Plattform prüfen; viele Apps verbieten automatisierte Abfragen. Ein Scraper wäre ein
-   eigenes Modul, das Tarife im OCPI-Format liefert – die Kostenrechnung und Auswertung
-   bleiben unverändert.
+**Regel:** Es gilt immer der **Ad-hoc-Preis** – ohne Abo, ohne Konto/App (Kreditkarte, TWINT,
+QR-Code oder Terminal an der Station). Wo nur App-/Konto-Preise publiziert sind, bleibt der
+Eintrag offen und der App-Preis steht nur als Referenz im Kommentar.
+
+| Betreiber (Muttenz) | Ad-hoc-Preis inkl. MWST | Quelle | Belastbarkeit |
+|---|---|---|---|
+| IWB, 5 Standorte AC | 0.48 CHF/kWh, keine Blockiergebühr | [IWB „Allmend Basel-Stadt“](https://www.iwb.ch/servicecenter/oeffentliches-ladenetz/mobilitaet-tarife) | mittel: publiziert für Basel-Stadt; Muttenz nutzt laut BFE-API dieselbe Tarif-ID `179904` |
+| IWB Waldhaus DC 24 kW | 0.60 CHF/kWh, ab 150 min 15 Rp./min | dito, „DC bis 50 kW“ | mittel: gleiche Tarif-ID `179908` wie Basler Allmend-DC |
+| Coop Muttenz Dorf / Freidorf (Energie 360°/Joya) | 0.39 CHF/kWh | [Energie 360° Easycharge](https://www.energie360.ch/de/leistungen/mobilitaet/easycharge/) | mittel: Coop-Preis ohne Unterscheidung ad hoc/registriert; Blockiergebühr unklar (nicht eingetragen) |
+| Migros M-Charge | 0.38 CHF/kWh (< 22 kW) | [Migrol M-Charge](https://www.migrol.ch/migros-aufladen) | hoch: Tabelle gilt laut Seite auch „ohne Konto“ per QR-Code |
+| Shell (ehem. evpass) AC 22 kW / DC 22 kW | ab 0.69 CHF/kWh | [Shell Ladetarife](https://www.shell.ch/de_ch/laden/ladetarife-fuer-ihr-elektroauto.html), Modell „Ohne App: QR-Code oder Zahlungsterminal“ | mittel: „ab“-Preis |
+| Shell DC 44 kW | ab 0.79 CHF/kWh | dito (> 22 kW) | mittel |
+| eCarUp (Abt Automobile, 3 Einträge) | **offen** | Preis legt der Gastgeber fest; nur in der App bzw. auf der QR-Seite an der Station | – |
+| MOVE/Joya (4 Standorte) | **offen** | kein Ad-hoc-Preis publiziert; Referenz „MOVE light“ (mit Konto) AC ab 0.57 | – |
+| AVIA VOLT (Trimag) | **offen** | Preis legt der Gastgeber fest; nur in der AVIA-VOLT-App | – |
+
+Nicht verwendbare Quellen: Swisscharge listet [Roaming-Preise](https://swisscharge.ch/en/solutions/charging-prices/)
+anderer Netze für Swisscharge-Kunden (nicht ad hoc); parking.ch und Electromaps spiegeln nur die
+BFE-Stammdaten ohne Preis; die Shell-Recharge-Karten-API ist aus der Cloud-Umgebung gesperrt
+(auf dem Pi evtl. erreichbar, aber App-Preise, nicht ad hoc).
+
+### Prüfen
+
+1. Vor Ort bzw. in der App den Ad-hoc-Preis kontrollieren (QR-Code scannen zeigt den Preis vor
+   der Zahlung), bei Abweichung Preis korrigieren, dann `verified = true` setzen.
+2. Offene Einträge (eCarUp, MOVE, AVIA VOLT) an der Station per QR-Code erfassen.
+3. `python -m ladestatistik -c config.toml health` zeigt, wie viele Einträge noch ungeprüft sind;
+   das Dashboard markiert sie mit „manuell, ungeprüft“.
+
+### Preis-Watcher (wiederholtes Webscraping)
+
+`python -m ladestatistik -c config.toml tariff-check` ruft die vier ergiebigen Quellen ab
+(Migrol, Energie 360°, IWB, Shell), speichert einen Snapshot unter `data/pricewatch/` und
+vergleicht mit den Einträgen in `tarife.toml`, die ein `watch`-Feld haben. Bei einer
+Abweichung (Exit-Code 1) einen **neuen** Eintrag mit neuem `valid_from` erfassen – so fliesst
+die Preisänderung in die Vorher/Nachher-Auswertung ein. Der Watcher schreibt nie selbst in
+`tarife.toml`. Ändert ein Betreiber das Seitenlayout, meldet der Check einen Fehler statt
+eines falschen Preises. Betrieb: täglich per systemd-Timer, Docker-Dienst `pricewatch` oder im
+Home-Assistant-Add-on (siehe [deployment.md](deployment.md)). Last: 4 Seitenabrufe pro Tag.
+
+### MWST in der BFE-API prüfen
+
+Der Joya-Feed meldet Tarife mit `tax_included: "NO"` und `vat: 8.1`. Für die Coop-DC-Tarif-ID
+`6962` ergibt das 0.55 CHF/kWh exkl. = 0.59 inkl. MWST; Energie 360° publiziert für Coop-DC
+aber 0.55 **inkl.** MWST. Die Zeitpreise im Feed (4.44, 2.78, 1.11 CHF/h) ergeben dagegen mit
+MWST genau runde Beträge (4.80, 3.00, 1.20). Möglicherweise sind die Energiepreise im Feed
+bereits brutto. Betroffen wären auch die drei API-Tarife im Nahbereich (Hardstrasse 21:
+0.36 vs. 0.39 CHF/kWh; Hofackerstrasse 3: 0.32 vs. 0.35 CHF/kWh) – bei der Prüfung vor Ort
+mitkontrollieren. Ist der API-Preis falsch, einen manuellen Eintrag erfassen (hat Vorrang).
+
+### Webscraping und Nutzungsbedingungen
+
+Abgerufen werden nur öffentliche Preisseiten, einzeln und selten (Erstrecherche einmalig,
+Watcher 4 Abrufe pro Tag), mit identifizierbarem User-Agent. Apps und geschützte Bereiche
+(eCarUp, AVIA VOLT, Joya-App) werden nicht automatisiert abgefragt; viele Apps verbieten das
+in ihren Nutzungsbedingungen.

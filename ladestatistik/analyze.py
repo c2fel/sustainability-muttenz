@@ -302,6 +302,9 @@ def _stats_row(meta: dict, st: EvseStats, tariff: dict | None, cfg: Config,
         "tariff_origin": tariff.get("_origin") if tariff else None,
         "tariff_source": tariff.get("_manual_source") if tariff else None,
         "tariff_valid_from": tariff.get("last_updated") if tariff else None,
+        "tariff_verified": tariff.get("_verified") if tariff else None,
+        "tariff_confidence": tariff.get("_confidence") if tariff else None,
+        "tariff_url": tariff.get("_url") if tariff else None,
         "ref_prices": _ref_prices(tariff, meta.get("power_kw"), cfg),
     }
 
@@ -364,6 +367,9 @@ def _site_rows(rows: list[dict], stats: dict, chosen_runs: dict, start: int, end
             "tariff": t0["tariff"]["description"] if t0 else None,
             "tariff_origin": t0["tariff_origin"] if t0 else None,
             "tariff_source": t0["tariff_source"] if t0 else None,
+            "tariff_verified": t0["tariff_verified"] if t0 else None,
+            "tariff_confidence": t0["tariff_confidence"] if t0 else None,
+            "tariff_url": t0["tariff_url"] if t0 else None,
             "tariff_mixed": len({r["tariff"]["description"] for r in with_tariff}) > 1,
             "tariff_missing": len(rs) - len(with_tariff),
             "ref_prices": {k: v["total_chf"] for k, v in t0["ref_prices"].items()} if t0 else {},
@@ -550,6 +556,8 @@ def analyze(conn, cfg: Config, days: float = 28, end: int | None = None) -> dict
             "tariff_coverage": {
                 "api": sum(1 for r in rows if r["tariff_origin"] == "api"),
                 "manual": sum(1 for r in rows if r["tariff_origin"] == "manual"),
+                "manual_unverified": sum(1 for r in rows if r["tariff_origin"] == "manual"
+                                         and not r["tariff_verified"]),
                 "missing": sum(1 for r in rows if not r["tariff"]),
                 "manual_overrides_api": sorted(r["evse_id"] for r in rows
                                                if r["tariff_origin"] == "manual"

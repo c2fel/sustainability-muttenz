@@ -26,6 +26,12 @@ services:
     command:
       - "while true; do python -m ladestatistik -c /app/config.toml publish --days 28; sleep 900; done"
 
+  pricewatch:
+    <<: *common
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "while true; do python -m ladestatistik -c /app/config.toml tariff-check; sleep 86400; done"
+
   web:
     <<: *common
     command: ["serve", "--host", "0.0.0.0", "--port", "8099"]

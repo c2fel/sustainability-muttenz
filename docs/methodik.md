@@ -104,6 +104,10 @@ DC getrennt). Preise brutto (inkl. MWST) so eintragen, wie sie in der App angeze
 mit `valid_from` und `source`. Ein manueller Tarif hat Vorrang vor der API;
 `python -m ladestatistik health` zeigt, wo inzwischen ein API-Tarif vorliegt. Bei einer
 Preisänderung einen **neuen** Eintrag mit neuem Datum ergänzen und den alten stehen lassen.
+Es gilt immer der Ad-hoc-Preis (ohne Abo, ohne Konto). Die Erstbefüllung stammt aus
+den Websites der Betreiber (`verified = false`, mit `confidence` hoch/mittel/tief); das
+Dashboard kennzeichnet ungeprüfte Preise. `tariff-check` meldet spätere Preisänderungen
+auf den Betreiber-Websites.
 
 ## Wie viele Daten braucht es?
 

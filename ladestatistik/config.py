@@ -16,6 +16,9 @@ log = logging.getLogger(__name__)
 PRICE_FIELDS = ("energy_chf_kwh", "time_chf_h", "blocking_chf_h", "flat_chf")
 
 
+CONFIDENCE = ("hoch", "mittel", "tief")
+
+
 @dataclass
 class ManualTariff:
     """Manuell erfasster Tarif, gültig ab ``valid_from`` (lokales Datum)."""
@@ -24,6 +27,8 @@ class ManualTariff:
     tariff: dict
     site: str = ""
     source: str = ""
+    confidence: str = ""      # hoch | mittel | tief (Einschätzung der Quelle)
+    verified: bool = False    # von einer Person vor Ort / in der App bestätigt
 
 
 @dataclass
@@ -60,6 +65,7 @@ class Config:
     manual_file: Path | None = None
     manual_tariffs: list[ManualTariff] = field(default_factory=list)
     manual_open: list[dict] = field(default_factory=list)   # Einträge ohne Preis
+    manual_specs: list[dict] = field(default_factory=list)  # alle Rohdaten (Preis-Watcher)
     # Publikation
     out_dir: Path = Path("site")             # Web-Root (stats.jumut.ch)
     report_path: str = "reports/charging"    # Unterpfad des Reports
@@ -108,11 +114,20 @@ def parse_manual(entries: list[dict], origin: str) -> tuple[list[ManualTariff], 
             dt.date.fromisoformat(valid_from)
         except ValueError:
             raise ValueError(f"{origin}: valid_from '{valid_from}' ist kein Datum (JJJJ-MM-TT)")
+        conf = str(spec.get("confidence") or "")
+        if conf and conf not in CONFIDENCE:
+            raise ValueError(f"{origin}: confidence '{conf}' – erlaubt: {', '.join(CONFIDENCE)}")
         tariff = from_simple({**spec, "id": f"manual:{ids[0]}:{valid_from}"})
-        tariff["_origin"] = "manual"
+        tariff.update({"_origin": "manual", "_confidence": conf,
+                       "_verified": bool(spec.get("verified", False)), "_url": spec.get("url")})
         done.append(ManualTariff(ids, valid_from, tariff, spec.get("site", ""),
-                                 spec.get("source", "")))
+                                 spec.get("source", ""), conf, bool(spec.get("verified", False))))
     return done, open_
+
+
+def normalize_specs(entries: list[dict]) -> list[dict]:
+    return [{**spec, "evse_ids": [e.strip().upper() for e in spec.get("evse_ids", [])],
+             "watch": dict(spec.get("watch") or {})} for spec in entries]
 
 
 def load(path: str | Path | None) -> Config:
@@ -164,6 +179,7 @@ def load(path: str | Path | None) -> Config:
         else:
             log.warning("Tarifdatei %s nicht gefunden", cfg.manual_file)
     cfg.manual_tariffs, cfg.manual_open = parse_manual(entries, str(mfile or p))
+    cfg.manual_specs = normalize_specs(entries)
 
     pub = data.get("publish", {})
     cfg.out_dir = (base / pub.get("out_dir", str(cfg.out_dir))).resolve()

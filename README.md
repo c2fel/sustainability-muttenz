@@ -18,9 +18,12 @@ Nähe (≤ 800 m) werden einzeln im Detail ausgewertet. Fehlende Preise werden m
 |---:|---|---|---|
 | 224 m | Eotec AG, Hardstrasse 21 (Swisscharge) | `CH*SUI*E31283`, `CH*SUI*E31284` (2 × 22 kW) | 0.39 CHF/kWh + 1.20 CHF/h |
 | 249 m | Ageba Treuhand AG, Hofackerstrasse 3 (Swisscharge) | `CH*SUI*E30985` (11 kW) | 0.35 CHF/kWh + 1.81 CHF/h |
-| 540 m | IWB, Jakob-Eglin-Strasse / Hauptstrasse 80 | `CH*IWB*E55318`, `CH*IWB*E55319` (2 × 22 kW) | noch nicht in der API |
-| 561 m | Coop Muttenz Dorf, Brühlweg 8 (Energie 360°) | `CH*360*E88149`, `…E88150`, `…E88186`, `…E88187` (4 × 22 kW) | noch nicht in der API |
-| 770 m | Migros Muttenz, Rothausstrasse (M-Charge) | `CH*MIG*E*246815`, `CH*MIG*E*246816` (2 × 22 kW) | keine Tarifdaten |
+| 540 m | IWB, Jakob-Eglin-Strasse / Hauptstrasse 80 | `CH*IWB*E55318`, `CH*IWB*E55319` (2 × 22 kW) | 0.48 CHF/kWh* |
+| 561 m | Coop Muttenz Dorf, Brühlweg 8 (Energie 360°) | `CH*360*E88149`, `…E88150`, `…E88186`, `…E88187` (4 × 22 kW) | 0.39 CHF/kWh* |
+| 770 m | Migros Muttenz, Rothausstrasse (M-Charge) | `CH*MIG*E*246815`, `CH*MIG*E*246816` (2 × 22 kW) | 0.38 CHF/kWh* |
+
+\* Ad-hoc-Preis (ohne Abo/Konto) aus der Website des Betreibers, erfasst in
+[`tarife.toml`](tarife.toml), noch nicht vor Ort geprüft. Die übrigen Preise stammen aus der BFE-API.
 
 Details, OCPI-Schlüssel, Zugänglichkeit und alle 49 Ladepunkte der Gemeinde:
 **[docs/standorte-muttenz.md](docs/standorte-muttenz.md)** ·
@@ -50,6 +53,9 @@ python3 -m ladestatistik -c config.toml health
 
 # neue Stationen ohne Tarif in tarife.toml ergänzen
 python3 -m ladestatistik -c config.toml tariff-template --out tarife.toml
+
+# Preisseiten der Betreiber abrufen (Webscraping) und mit tarife.toml vergleichen
+python3 -m ladestatistik -c config.toml tariff-check
 
 # Tests
 python3 -m unittest discover -s tests
@@ -90,6 +96,7 @@ ladestatistik/
   analyze.py     Auslastung, Ladevorgänge, Heatmap, Preis-Analyse
   publish.py     Web-Root: Übersicht + reports/charging/ (Dashboard, CSV/JSON)
   serve.py       statischer Webserver für stats.jumut.ch (Cache-Header, kein Listing)
+  pricewatch.py  Webscraping der Preisseiten (Migrol, Energie 360°, IWB, Shell)
   templates/dashboard.html
 tarife.toml      manuell erfasste Tarife (Preisverlauf, versioniert)
 deploy/          systemd, Docker, Home-Assistant-Add-on, cloudflared, git-publish.sh
@@ -100,8 +107,10 @@ tests/           Unit-Tests (unittest)
 ## Nächste Schritte
 
 1. Collector auf dem Pi installieren und 4–8 Wochen laufen lassen.
-2. Offene Tarife in [`tarife.toml`](tarife.toml) erfassen (19 Einträge: IWB, Coop/Energie
-   360°, Migros, MOVE, eCarUp, Shell, AVIA).
+2. [`tarife.toml`](tarife.toml) prüfen: 12 per Webscraping befüllte Einträge vor Ort bzw. in
+   der App kontrollieren und `verified = true` setzen; 8 offene Einträge (eCarUp, MOVE,
+   AVIA VOLT) an der Station per QR-Code erfassen. Dabei auch die MWST der drei
+   BFE-API-Tarife kontrollieren ([datenquellen.md](docs/datenquellen.md#mwst-in-der-bfe-api-prüfen)).
 3. `stats.jumut.ch` im bestehenden Tunnel anlegen und Zugriff festlegen (öffentlich oder
    Cloudflare Access). Vor einer öffentlichen Publikation die kommerzielle Nutzung beim
    BFE abklären (ich-tanke-strom@bfe.admin.ch).

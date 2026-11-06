@@ -1,0 +1,13 @@
+# Preisseiten der Betreiber abrufen und mit tarife.toml vergleichen.
+# Exit-Code 1 bei Abweichung -> "systemctl --failed" bzw. Journal zeigt es an.
+[Unit]
+Description=Ladestatistik Muttenz – Preis-Check (Webscraping Betreiberseiten)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ladestatistik
+WorkingDirectory=/opt/ladestatistik
+ExecStart=/usr/bin/python3 -m ladestatistik -c /opt/ladestatistik/config.toml tariff-check
+NoNewPrivileges=true
