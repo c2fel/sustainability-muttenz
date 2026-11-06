@@ -172,6 +172,7 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
   <footer>
     <p id="attribution"></p>
     <p>Daten: <a href="data/summary.json">summary.json</a> · <a href="data/daily.csv">daily.csv</a> · <a href="data/evses.csv">evses.csv</a></p>
+    <p id="version"></p>
   </footer>
 </div>
 <div id="tip" role="tooltip"></div>
@@ -221,6 +222,7 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
   $('subtitle').textContent = `Öffentliche Ladepunkte in der Gemeinde ${D.site.municipality} · Nahbereich bis ${nf(D.site.focus_radius_m)} m um ${D.site.address}`;
   $('meta').textContent = `Zeitraum ${fmtDate(D.window.start)} – ${fmtDate(D.window.end)} (${nf(D.window.days, 1)} Tage) · aktualisiert ${fmtDate(D.generated_at)}`;
   $('attribution').textContent = D.attribution;
+  if (D.version && D.version.commit) $('version').textContent = `Version ${D.version.commit} vom ${new Date(D.version.date).toLocaleDateString('de-CH')}`;
 
   // ---------- Kennzahlen Nahbereich
   const g = D.focus.group || {}, gs = D.focus.group_sessions || {};

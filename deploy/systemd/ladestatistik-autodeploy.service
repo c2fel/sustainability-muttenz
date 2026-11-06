@@ -1,0 +1,12 @@
+# Auto-Deploy: neue Commits auf GitHub (DEPLOY_BRANCH) prüfen und ausrollen.
+# Läuft als root, weil es Dienste neu startet; Git und Tests laufen als APP_USER.
+[Unit]
+Description=Ladestatistik Muttenz – Auto-Deploy von GitHub
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/ladestatistik
+ExecStart=/opt/ladestatistik/deploy/autodeploy.sh
+TimeoutStartSec=10min

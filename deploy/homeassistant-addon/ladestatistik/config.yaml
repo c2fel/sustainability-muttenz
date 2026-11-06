@@ -1,6 +1,8 @@
-# Home Assistant OS – lokales Add-on (Installation: docs/deployment.md, Variante C)
+# Home Assistant OS – lokales Add-on (Installation: docs/inbetriebnahme.md, Variante C)
+# Der Code kommt beim Start von GitHub; neue Commits auf "branch" werden automatisch
+# geprüft und ausgerollt (alle poll_seconds).
 name: Ladestatistik Muttenz
-version: "0.1.0"
+version: "0.2.0"
 slug: ladestatistik
 description: Auslastung und Tarife öffentlicher Ladestationen aufzeichnen (ich-tanke-strom.ch / BFE)
 url: https://github.com/c2fel/sustainability-muttenz
@@ -17,3 +19,11 @@ ports:
   8099/tcp: 8099
 ports_description:
   8099/tcp: Web-Root stats.jumut.ch (statisch)
+options:
+  repository: https://github.com/c2fel/sustainability-muttenz.git
+  branch: main
+  poll_seconds: 120
+schema:
+  repository: url
+  branch: str
+  poll_seconds: int(30,3600)

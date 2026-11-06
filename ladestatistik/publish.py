@@ -18,6 +18,8 @@ import csv
 import html as htmllib
 import json
 import os
+import subprocess
+import time
 from importlib import resources
 from pathlib import Path
 
@@ -65,6 +67,18 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
     os.replace(tmp, path)
 
 
+def code_version() -> dict:
+    """Ausgerollter Git-Stand (für Footer und /version.json), falls verfügbar."""
+    root = Path(__file__).resolve().parent.parent
+    try:
+        out = subprocess.run(["git", "-C", str(root), "log", "-1", "--format=%h|%cI|%s"],
+                             capture_output=True, text=True, timeout=5)
+        commit, date, subject = out.stdout.strip().split("|", 2)
+        return {"commit": commit, "date": date, "subject": subject}
+    except Exception:  # noqa: BLE001 - kein Git (z.B. Paket-Installation)
+        return {}
+
+
 def _landing(cfg: Config, report_href: str) -> str:
     noindex = "" if cfg.allow_indexing else '<meta name="robots" content="noindex">\n'
     return f"""<!doctype html>
@@ -104,6 +118,7 @@ def publish(conn, cfg: Config, days: float = 28, out_dir: Path | None = None) ->
     report = root / cfg.report_path
     res = analyze(conn, cfg, days=days)
     res["title"] = cfg.public_title
+    res["version"] = code_version()
 
     daily = res.pop("daily")
     evses = res.pop("evses")
@@ -127,6 +142,8 @@ def publish(conn, cfg: Config, days: float = 28, out_dir: Path | None = None) ->
 
     _atomic_write(root / "index.html", _landing(cfg, f"/{cfg.report_path}/"))
     _atomic_write(root / "reports" / "index.html", _landing(cfg, f"/{cfg.report_path}/"))
+    _atomic_write(root / "version.json", json.dumps(
+        {**res["version"], "generated_at": int(time.time())}, ensure_ascii=False))
     _atomic_write(root / "robots.txt",
                   "User-agent: *\n" + ("Allow: /\n" if cfg.allow_indexing else "Disallow: /\n"))
     return report / "index.html"

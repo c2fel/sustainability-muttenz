@@ -1,11 +1,6 @@
 ARG BUILD_FROM
 FROM $BUILD_FROM
-RUN apk add --no-cache python3 tzdata
-WORKDIR /app
-# wird von prepare.sh in den Build-Kontext kopiert
-COPY ladestatistik /app/ladestatistik
-COPY config.example.toml /app/config.example.toml
-COPY tarife.toml /app/tarife.toml
-COPY run.sh /run.sh
-RUN chmod a+x /run.sh
-CMD ["/run.sh"]
+# Der Code wird zur Laufzeit von GitHub geholt und automatisch aktualisiert (supervisor.py).
+RUN apk add --no-cache python3 tzdata git
+COPY supervisor.py /supervisor.py
+CMD ["python3", "-u", "/supervisor.py"]

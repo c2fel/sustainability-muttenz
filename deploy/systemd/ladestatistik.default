@@ -1,0 +1,9 @@
+# /etc/default/ladestatistik – Einstellungen für das Auto-Deploy
+# (wird bei Updates nicht überschrieben)
+APP_DIR=/opt/ladestatistik
+APP_USER=ladestatistik
+# Branch, dem der Pi folgt. Bis der Feature-Branch in main gemergt ist, z.B.:
+# DEPLOY_BRANCH=claude/muttenz-charging-analysis-44bv84
+DEPLOY_BRANCH=main
+# systemd (Variante A) oder compose (Variante B)
+DEPLOY_MODE=systemd

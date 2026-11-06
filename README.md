@@ -79,10 +79,13 @@ Datenquellen und Nutzungsbedingungen: [docs/datenquellen.md](docs/datenquellen.m
 
 ## Betrieb und Veröffentlichung
 
-systemd, Docker Compose oder Home-Assistant-OS-Add-on; Veröffentlichung unter
-`stats.jumut.ch` (Übersicht `/`, Ladestatistik `/reports/charging/`, Platz für `/api/v1/…`),
-Zugriffsschutz pro Pfad und optionaler Push der Daten in den Branch `data`:
-**[docs/deployment.md](docs/deployment.md)**
+* **[docs/inbetriebnahme.md](docs/inbetriebnahme.md)** – Schritt für Schritt: Installation
+  auf dem Raspberry Pi (systemd, Docker Compose oder Home-Assistant-OS-Add-on),
+  **Auto-Deploy** (jeder Push auf `main` wird innerhalb von ~2 min geprüft und ausgerollt,
+  bei Fehlern Rollback), Cloudflare-Tunnel und Subdomain `stats.jumut.ch`.
+* [docs/deployment.md](docs/deployment.md) – Referenz: Architektur, URL-Struktur
+  (`/` Übersicht, `/reports/charging/` Ladestatistik, Platz für `/api/v1/…`), Zugriffsschutz
+  pro Pfad, Webserver, optionaler Push der Daten in den Branch `data`, Ressourcen.
 
 ## Aufbau
 
@@ -99,21 +102,22 @@ ladestatistik/
   pricewatch.py  Webscraping der Preisseiten (Migrol, Energie 360°, IWB, Shell)
   templates/dashboard.html
 tarife.toml      manuell erfasste Tarife (Preisverlauf, versioniert)
-deploy/          systemd, Docker, Home-Assistant-Add-on, cloudflared, git-publish.sh
+deploy/          Auto-Deploy, systemd, Docker, Home-Assistant-Add-on, cloudflared, git-publish.sh
 docs/            Standorte, Datenquellen, Methodik, Betrieb
 tests/           Unit-Tests (unittest)
 ```
 
 ## Nächste Schritte
 
-1. Collector auf dem Pi installieren und 4–8 Wochen laufen lassen.
+1. Feature-Branch per Pull Request nach `main` mergen, dann den Pi gemäss
+   [docs/inbetriebnahme.md](docs/inbetriebnahme.md) einrichten und 4–8 Wochen laufen lassen.
 2. [`tarife.toml`](tarife.toml) prüfen: 12 per Webscraping befüllte Einträge vor Ort bzw. in
    der App kontrollieren und `verified = true` setzen; 8 offene Einträge (eCarUp, MOVE,
    AVIA VOLT) an der Station per QR-Code erfassen. Dabei auch die MWST der drei
    BFE-API-Tarife kontrollieren ([datenquellen.md](docs/datenquellen.md#mwst-in-der-bfe-api-prüfen)).
-3. `stats.jumut.ch` im bestehenden Tunnel anlegen und Zugriff festlegen (öffentlich oder
-   Cloudflare Access). Vor einer öffentlichen Publikation die kommerzielle Nutzung beim
-   BFE abklären (ich-tanke-strom@bfe.admin.ch).
+3. Zugriff auf `stats.jumut.ch` festlegen (öffentlich oder Cloudflare Access). Vor einer
+   öffentlichen Publikation die kommerzielle Nutzung beim BFE abklären
+   (ich-tanke-strom@bfe.admin.ch).
 4. Später: eigene Ladepunkte über EVCC steuern und deren Sitzungen (EVCC-API) mit der
    Umgebung vergleichen; API unter `stats.jumut.ch/api/v1/…`.
 

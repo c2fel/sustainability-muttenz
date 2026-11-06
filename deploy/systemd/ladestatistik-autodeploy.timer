@@ -1,0 +1,9 @@
+[Unit]
+Description=Ladestatistik Muttenz – Auto-Deploy alle 2 Minuten
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+
+[Install]
+WantedBy=timers.target

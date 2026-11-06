@@ -1,4 +1,7 @@
-# Betrieb auf dem Raspberry Pi
+# Betrieb auf dem Raspberry Pi – Referenz
+
+**Schritt-für-Schritt-Anleitung: [inbetriebnahme.md](inbetriebnahme.md)** (Installation,
+Auto-Deploy, Tunnel, Subdomain). Dieses Dokument beschreibt Aufbau und Einstellungen.
 
 Der Collector braucht nur Python ≥ 3.11 (keine Zusatzpakete). Er läuft dauerhaft,
 der Web-Root wird alle 15 Minuten neu erzeugt und lokal auf Port 8099 ausgeliefert.
@@ -6,13 +9,16 @@ der Web-Root wird alle 15 Minuten neu erzeugt und lokal auf Port 8099 ausgeliefe
 **`https://stats.jumut.ch/reports/charging/`**.
 
 ```
-          ich-tanke-strom.ch (BFE)
-                  │  HTTPS (ausgehend, < 2 Requests/min)
-┌─────────────────▼──────────────────────── Raspberry Pi ─┐
+   GitHub (main) ──── git fetch alle 2 min ─────────────┐
+          ich-tanke-strom.ch (BFE)                      │
+                  │  HTTPS (ausgehend, < 2 Requests/min) │
+┌─────────────────▼──────────────────────── Raspberry Pi ▼┐
+│ autodeploy: Tests → Probe-Publish → Neustart/Rollback    │
 │ collector ──► SQLite (data/ladestatistik.sqlite)         │
 │ publish (15 min) ──► site/  (Web-Root)                   │
-│     site/index.html                Übersicht             │
+│     site/index.html, version.json  Übersicht, Version    │
 │     site/reports/charging/         Dashboard + data/*    │
+│ tariff-check (täglich) ──► Betreiber-Preisseiten         │
 │ serve 127.0.0.1:8099 ◄── cloudflared ◄───────────────────┼── stats.jumut.ch
 │ (später API-Dienst :8100 ◄── cloudflared, Pfad /api/ ◄───┼── stats.jumut.ch/api/…)
 │ EVCC :7070            ◄── cloudflared ◄───────────────────┼── charging.jumut.ch (Access)
@@ -20,65 +26,21 @@ der Web-Root wird alle 15 Minuten neu erzeugt und lokal auf Port 8099 ausgeliefe
 └──────────────────────────────────────────────────────────┘
 ```
 
-Welche Variante passt, hängt davon ab, wie Home Assistant installiert ist
-(Einstellungen → System → Info → „Installationstyp“):
+## Dienste je Installationsart
 
-| Installationstyp | Variante |
-|---|---|
-| Home Assistant **OS** | C – lokales Add-on |
-| Home Assistant **Container** / Supervised auf Raspberry Pi OS | A (systemd) oder B (Docker) |
+| Aufgabe | A: systemd | B: Docker Compose | C: HA-OS-Add-on |
+|---|---|---|---|
+| Collector | `ladestatistik-collector.service` | Dienst `collector` | Supervisor |
+| Webserver :8099 | `ladestatistik-web.service` | Dienst `web` | Supervisor |
+| Dashboard alle 15 min | `ladestatistik-publish.timer` | Dienst `publisher` | Supervisor |
+| Preis-Check täglich | `ladestatistik-tariffcheck.timer` | Dienst `pricewatch` | Supervisor |
+| Auto-Deploy alle 2 min | `ladestatistik-autodeploy.timer` (`deploy/autodeploy.sh`) | dito, `DEPLOY_MODE=compose` | Supervisor (`poll_seconds`) |
+| Einstellungen Auto-Deploy | `/etc/default/ladestatistik` | dito | Add-on-Optionen `branch`, `poll_seconds` |
+| Protokoll | `journalctl -u ladestatistik-*` | `docker compose logs` | Add-on-Protokoll |
 
-## A – systemd (Raspberry Pi OS / Debian)
-
-```bash
-# Benutzer ohne Login; Home (SSH-Keys) getrennt vom Code-Verzeichnis
-sudo useradd --system --create-home --home-dir /var/lib/ladestatistik --shell /usr/sbin/nologin ladestatistik
-sudo mkdir /opt/ladestatistik && sudo chown ladestatistik: /opt/ladestatistik
-sudo -u ladestatistik git clone https://github.com/c2fel/sustainability-muttenz.git /opt/ladestatistik
-cd /opt/ladestatistik
-sudo -u ladestatistik cp config.example.toml config.toml   # anpassen; Tarife: tarife.toml
-sudo -u ladestatistik mkdir -p data site
-sudo -u ladestatistik python3 -m ladestatistik -c config.toml collect --once   # Test
-sudo cp deploy/systemd/*.service deploy/systemd/*.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now ladestatistik-collector ladestatistik-web ladestatistik-publish.timer ladestatistik-tariffcheck.timer
-python3 -m ladestatistik -c config.toml health
-```
-
-Bei privatem Repo: zum Klonen einen Deploy-Key verwenden (siehe unten).
-Update: `cd /opt/ladestatistik && sudo -u ladestatistik git pull && sudo systemctl restart ladestatistik-collector ladestatistik-web`
-
-Geänderte Preise in `tarife.toml` (z.B. per `git pull`) braucht keinen Neustart:
-der nächste Publish-Lauf (alle 15 min) liest die Datei neu.
-
-Der Preis-Check (`ladestatistik-tariffcheck.timer`, täglich 06:17) vergleicht die
-Preisseiten der Betreiber mit `tarife.toml`; bei einer Abweichung schlägt der Dienst fehl
-(`systemctl --failed`, `journalctl -u ladestatistik-tariffcheck`).
-
-## B – Docker Compose
-
-```bash
-git clone https://github.com/c2fel/sustainability-muttenz.git && cd sustainability-muttenz
-cp config.example.toml config.toml && mkdir -p data site
-docker compose -f deploy/docker/docker-compose.yml up -d --build
-```
-
-Der Webserver ist nur auf `127.0.0.1:8099` gebunden. Läuft `cloudflared` selbst in
-einem Container, die Port-Bindung in `docker-compose.yml` anpassen oder beide
-Container in dasselbe Docker-Netz hängen.
-
-## C – Home Assistant OS (lokales Add-on)
-
-1. Auf einem Rechner mit dem Repo: `sh deploy/homeassistant-addon/prepare.sh`
-   (kopiert das Python-Paket in den Build-Ordner).
-2. Den Ordner `deploy/homeassistant-addon/ladestatistik` nach `/addons/ladestatistik`
-   auf Home Assistant kopieren (Add-on „Samba share“ oder „Advanced SSH & Web Terminal“).
-3. Einstellungen → Add-ons → Add-on-Store → ⋮ → „Nach Updates suchen“ →
-   unter „Lokale Add-ons“ *Ladestatistik Muttenz* installieren und starten.
-4. Konfiguration, Tarife und Daten liegen in `/addon_configs/local_ladestatistik/`
-   (`config.toml` und `tarife.toml` werden beim ersten Start aus dem Repo-Stand erzeugt;
-   Preise danach direkt dort pflegen).
-5. Lokal: `http://<ha-ip>:8099/reports/charging/`.
+Geänderte Preise in `tarife.toml` brauchen keinen Neustart: der nächste Publish-Lauf liest
+die Datei neu. Der Preis-Check schlägt bei einer Abweichung fehl (A: `systemctl --failed`,
+`journalctl -u ladestatistik-tariffcheck`).
 
 ## Veröffentlichung unter stats.jumut.ch
 
@@ -101,36 +63,15 @@ Container in dasselbe Docker-Netz hängen.
 * Die API später mit Versionsnummer anlegen (`/api/v1/…`), damit Änderungen möglich
   bleiben, ohne bestehende Abnehmer zu brechen.
 
-### Subdomain und Tunnel einrichten
+### Tunnel und Subdomain
 
-`jumut.ch` ist bereits bei Cloudflare – eine Registrierung bei einem Registrar ist nicht
-nötig. Beim Hinzufügen eines *Public Hostname* zum bestehenden Tunnel legt Cloudflare den
-DNS-Eintrag `stats` (CNAME auf `<tunnel-id>.cfargotunnel.com`) automatisch an.
-
-* **Im Dashboard verwalteter Tunnel** (Standard): Cloudflare Zero Trust → Networks →
-  Tunnels → bestehenden Tunnel wählen → *Public Hostname* → *Add*:
-  Subdomain `stats`, Domain `jumut.ch`, Path leer, Service `HTTP`, URL `localhost:8099`
-  (Variante A/B) bzw. `local-ladestatistik:8099` oder `<ha-ip>:8099` (Variante C).
-* **Home-Assistant-Add-on „Cloudflared“**: in den Add-on-Optionen unter
-  `additional_hosts` ergänzen:
-  ```yaml
-  - hostname: stats.jumut.ch
-    service: http://local-ladestatistik:8099
-  ```
-* **Lokal verwalteter Tunnel** (`config.yml`): siehe
-  [`deploy/cloudflared/config.example.yml`](../deploy/cloudflared/config.example.yml).
+Einrichtung: [inbetriebnahme.md, Schritte 3 und 4](inbetriebnahme.md#3-tunnel-statsjumutch-hinzufügen).
+Vorlage für lokal verwaltete Tunnel: [`deploy/cloudflared/config.example.yml`](../deploy/cloudflared/config.example.yml).
 
 Später für die API eine **zweite** Regel für denselben Hostnamen mit Path `^/api/` auf
 den API-Dienst anlegen und **vor** die allgemeine Regel stellen (die erste passende Regel
 gewinnt). Cloudflare entfernt den Pfad nicht: der API-Dienst erhält `/api/v1/…`. Bis dahin
 beantwortet der Web-Root-Server `/api/…` mit 404.
-
-Test nach der Einrichtung:
-```bash
-curl -I https://stats.jumut.ch/reports/charging/            # 200, Cache-Control: no-cache
-curl -I https://stats.jumut.ch/reports/charging/data/daily.csv   # 200, max-age=300
-curl -I https://stats.jumut.ch/reports/charging/data/       # 404 (keine Verzeichnisliste)
-```
 
 ### Zugriffsschutz (Cloudflare Access)
 
@@ -155,7 +96,9 @@ Kein Schreibzugriff, kein Datenbankzugriff.
 
 Ein `git push` vom Pi zu GitHub ist eine **ausgehende** Verbindung und braucht keinen
 Cloudflare-Tunnel. Der Tunnel ist nur für **eingehende** Zugriffe (stats.jumut.ch, EVCC,
-optional SSH-Fernwartung) nötig.
+optional SSH-Fernwartung) nötig. Zum *Abholen* des Codes (Auto-Deploy) braucht der Pi keinen
+Schlüssel, weil das Repo öffentlich ist; nur das optionale Zurückschreiben der Daten in den
+Branch `data` benötigt einen Deploy-Key mit Schreibrecht.
 
 Einrichtung (einmalig):
 
@@ -186,8 +129,8 @@ Optional GitHub Pages: Settings → Pages → Branch `data`, Ordner `/docs`
 
 Public Hostname `ssh-pi.jumut.ch` → Service `SSH`, URL `localhost:22`, mit
 Access-Policy. Zugriff vom Laptop: `cloudflared access ssh --hostname ssh-pi.jumut.ch`
-(als `ProxyCommand` in `~/.ssh/config`). So lassen sich Updates (`git pull`) einspielen,
-ohne Ports am Router zu öffnen.
+(als `ProxyCommand` in `~/.ssh/config`). Für Code-Updates nicht nötig (Auto-Deploy),
+aber praktisch für Wartung, ohne Ports am Router zu öffnen.
 
 ## Ressourcen
 
