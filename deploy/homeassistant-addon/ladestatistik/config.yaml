@@ -16,4 +16,4 @@ map:
 ports:
   8099/tcp: 8099
 ports_description:
-  8099/tcp: Dashboard (statisch)
+  8099/tcp: Web-Root stats.jumut.ch (statisch)

@@ -2,7 +2,7 @@
 #   cp config.example.toml config.toml
 #   docker compose -f deploy/docker/docker-compose.yml up -d --build
 #
-# Dienste: collector (Dauerbetrieb), publisher (alle 15 min), web (127.0.0.1:8099)
+# Dienste: collector (Dauerbetrieb), publisher (alle 15 min), web (127.0.0.1:8099 = stats.jumut.ch)
 x-common: &common
   build:
     context: ../..
@@ -11,6 +11,7 @@ x-common: &common
   restart: unless-stopped
   volumes:
     - ../../config.toml:/app/config.toml:ro
+    - ../../tarife.toml:/app/tarife.toml:ro
     - ../../data:/app/data
     - ../../site:/app/site
 
@@ -27,7 +28,6 @@ services:
 
   web:
     <<: *common
-    entrypoint: ["python", "-m", "http.server", "8099", "--directory", "/app/site"]
-    command: []
+    command: ["serve", "--host", "0.0.0.0", "--port", "8099"]
     ports:
       - "127.0.0.1:8099:8099"

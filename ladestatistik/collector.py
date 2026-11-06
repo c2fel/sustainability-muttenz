@@ -16,7 +16,7 @@ import signal
 import time
 from dataclasses import dataclass
 
-from . import catalog, db, geo, sources
+from . import catalog, db, sources
 from .config import Config
 from .status import normalize
 
@@ -68,40 +68,22 @@ class Collector:
                 r["id"], r["status_raw"], r["start_ts"], r["end_ts"], r["src_ts"])
 
     # ---------------------------------------------------------------- Katalog
-    def in_scope(self, e: catalog.Evse) -> bool:
-        cfg = self.cfg
-        if e.evse_id in cfg.exclude_evse_ids:
-            return False
-        if e.evse_id in cfg.focus_evse_ids:
-            return True
-        if e.distance_m is not None and e.distance_m <= cfg.record_radius_km * 1000:
-            return True
-        return cfg.record_municipality and e.in_municipality
-
     def refresh_catalog(self) -> int:
         cfg = self.cfg
         cat, tmap = catalog.fetch_all(with_oicp=cfg.oicp_enabled)
-        try:
-            muni = geo.municipality_at(cfg.lat, cfg.lon, cache=cfg.municipality_cache)
-            geom = muni.get("geometry")
-        except Exception as exc:  # noqa: BLE001
-            log.warning("Gemeindegrenze nicht verfügbar: %s", exc)
-            geom = None
-        catalog.annotate(cat, cfg.lat, cfg.lon, geom)
+        catalog.annotate_municipality(cat, cfg)
         now = int(time.time())
         scope: dict[str, dict] = {}
         new_versions = 0
         with self.conn:
             for e in cat.values():
-                if not self.in_scope(e):
+                if not catalog.in_scope(e, cfg):
                     continue
                 row = {c: getattr(e, c, None) for c in db.EVSE_COLS if c != "is_focus"}
                 row["in_ocpi"] = int(e.in_ocpi)
                 row["in_oicp"] = int(e.in_oicp)
                 row["in_municipality"] = int(e.in_municipality)
-                row["is_focus"] = int(e.evse_id in cfg.focus_evse_ids or
-                                      (e.distance_m is not None and
-                                       e.distance_m <= cfg.focus_radius_m))
+                row["is_focus"] = int(catalog.is_focus(e, cfg))
                 cols = db.EVSE_COLS
                 self.conn.execute(
                     f"INSERT INTO evse ({','.join(cols)}, first_seen, last_seen) "

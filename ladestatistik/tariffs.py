@@ -240,7 +240,7 @@ def _describe_restrictions(r: dict | None) -> str:
     if not r:
         return ""
     parts = []
-    if r.get("min_duration") is not None:
+    if r.get("min_duration"):  # 0 = ab Beginn, nicht erwähnen
         parts.append(f"ab {_fmt_h(float(r['min_duration']))}")
     if r.get("max_duration") is not None:
         parts.append(f"bis {_fmt_h(float(r['max_duration']))}")
@@ -262,6 +262,7 @@ def _describe_restrictions(r: dict | None) -> str:
     return ", ".join(parts)
 
 
+_FREE = {"ENERGY": "Energie", "TIME": "Zeit", "PARKING_TIME": "Parkieren", "FLAT": "Start"}
 _UNIT = {"ENERGY": "CHF/kWh", "TIME": "CHF/h", "PARKING_TIME": "CHF/h Parkieren",
          "FLAT": "CHF pro Vorgang"}
 
@@ -274,6 +275,8 @@ def describe(tariff: dict | None) -> str:
     for el in tariff.get("elements") or []:
         restr = _describe_restrictions(el.get("restrictions"))
         comps = [f"{gross_price(tariff, pc):.2f} {_UNIT.get(pc.get('type'), pc.get('type'))}"
+                 if float(pc.get("price") or 0) > 0
+                 else f"{_FREE.get(pc.get('type'), pc.get('type'))} gratis"
                  for pc in el.get("price_components") or []
                  if float(pc.get("price") or 0) > 0 or restr]  # Gratis-Fenster zeigen
         if not comps:

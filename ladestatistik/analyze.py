@@ -182,8 +182,16 @@ def group_minutes(runs_by_evse: dict[str, list], start: int, end: int) -> dict:
 
 # ------------------------------------------------------------------- Tarife
 
-def current_tariffs(conn, cfg: Config) -> dict[str, dict]:
-    """EVSE -> aktuell gültiger Tarif (manuell erfasst > API)."""
+def _local_midnight(day: str) -> int:
+    d = dt.date.fromisoformat(day)
+    return int(dt.datetime(d.year, d.month, d.day, tzinfo=TZ).timestamp())
+
+
+def current_tariffs(conn, cfg: Config, at: int | None = None) -> dict[str, dict]:
+    """EVSE -> gültiger Tarif zum Zeitpunkt ``at``. Manuell erfasst geht vor API.
+
+    Jeder Tarif bekommt ``_origin`` = "api" | "manual".
+    """
     out: dict[str, dict] = {}
     rows = conn.execute(
         "SELECT et.evse_id, tv.json FROM evse_tariff et "
@@ -193,34 +201,56 @@ def current_tariffs(conn, cfg: Config) -> dict[str, dict]:
         "JOIN (SELECT tariff_key, MAX(last_seen) ls FROM tariff_version GROUP BY tariff_key) v "
         "  ON tv.tariff_key = v.tariff_key AND tv.last_seen = v.ls").fetchall()
     for r in rows:
-        out.setdefault(r["evse_id"], json.loads(r["json"]))
-    out.update(cfg.manual_tariffs)
+        if r["evse_id"] not in out:
+            out[r["evse_id"]] = {**json.loads(r["json"]), "_origin": "api"}
+    at_date = _local(at or time.time()).date()
+    for m in cfg.manual_tariffs:
+        for eid in m.evse_ids:
+            cur = cfg.manual_tariff_for(eid, at_date)
+            if cur is not None:
+                out[eid] = cur.tariff
     return out
 
 
-def tariff_changes(conn) -> list[dict]:
-    """Neue Tarifversionen bzw. Tarifwechsel nach der ersten Erfassung."""
-    first = conn.execute("SELECT MIN(first_seen) t FROM tariff_version").fetchone()["t"]
-    if first is None:
-        return []
+def api_tariff_evses(conn) -> set[str]:
+    return {r["evse_id"] for r in conn.execute(
+        "SELECT DISTINCT et.evse_id FROM evse_tariff et JOIN tariff_version tv "
+        "ON tv.tariff_key = et.tariff_key")}
+
+
+def tariff_changes(conn, cfg: Config) -> list[dict]:
+    """Preisänderungen: neue API-Tarifversionen/Tarif-IDs nach der ersten Erfassung und
+    manuelle Einträge mit späterem ``valid_from`` für dieselben Ladepunkte."""
     out = []
-    for r in conn.execute(
-            "SELECT tv.tariff_key, tv.first_seen, tv.json, et.evse_id FROM tariff_version tv "
-            "JOIN evse_tariff et ON et.tariff_key = tv.tariff_key "
-            "WHERE tv.first_seen > ? + 3600", (first,)):
-        out.append({"evse_id": r["evse_id"], "ts": r["first_seen"], "kind": "price",
-                    "tariff_key": r["tariff_key"], "tariff": json.loads(r["json"])})
-    for r in conn.execute("SELECT evse_id, tariff_key, first_seen FROM evse_tariff "
-                          "WHERE first_seen > ? + 3600", (first,)):
-        out.append({"evse_id": r["evse_id"], "ts": r["first_seen"], "kind": "tariff_id",
-                    "tariff_key": r["tariff_key"]})
+    first = conn.execute("SELECT MIN(first_seen) t FROM tariff_version").fetchone()["t"]
+    if first is not None:
+        for r in conn.execute(
+                "SELECT tv.tariff_key, tv.first_seen, tv.json, et.evse_id FROM tariff_version tv "
+                "JOIN evse_tariff et ON et.tariff_key = tv.tariff_key "
+                "WHERE tv.first_seen > ? + 3600", (first,)):
+            out.append({"evse_id": r["evse_id"], "ts": r["first_seen"], "kind": "api",
+                        "tariff_key": r["tariff_key"], "tariff": json.loads(r["json"])})
+        for r in conn.execute("SELECT evse_id, tariff_key, first_seen FROM evse_tariff "
+                              "WHERE first_seen > ? + 3600", (first,)):
+            out.append({"evse_id": r["evse_id"], "ts": r["first_seen"], "kind": "api_id",
+                        "tariff_key": r["tariff_key"]})
+    by_evse: dict[str, list] = defaultdict(list)
+    for m in cfg.manual_tariffs:
+        for eid in m.evse_ids:
+            by_evse[eid].append(m)
+    for eid, ms in by_evse.items():
+        for m in sorted(ms, key=lambda m: m.valid_from)[1:]:
+            out.append({"evse_id": eid, "ts": _local_midnight(m.valid_from), "kind": "manual",
+                        "tariff_key": m.tariff.get("id"), "tariff": m.tariff})
     return sorted(out, key=lambda c: c["ts"])
 
 
 # --------------------------------------------------------------- Hauptauswertung
 
 def _evse_meta(conn) -> dict[str, dict]:
-    return {r["evse_id"]: dict(r) for r in conn.execute("SELECT * FROM evse")}
+    """Nur Ladepunkte im aktuellen Scope (letzte Katalog-Aktualisierung)."""
+    return {r["evse_id"]: dict(r) for r in conn.execute(
+        "SELECT * FROM evse WHERE last_seen = (SELECT MAX(last_seen) FROM evse)")}
 
 
 def _ref_prices(tariff: dict | None, power_kw: float | None, cfg: Config) -> dict:
@@ -231,7 +261,7 @@ def _ref_prices(tariff: dict | None, power_kw: float | None, cfg: Config) -> dic
 
 
 def _stats_row(meta: dict, st: EvseStats, tariff: dict | None, cfg: Config,
-               days: float, now_status: str | None) -> dict:
+               now_status: str | None) -> dict:
     durs = [(e - s) / 60 for s, e in st.sessions]
     obs_days = st.operational_s / DAY if st.operational_s else 0
     return {
@@ -241,15 +271,20 @@ def _stats_row(meta: dict, st: EvseStats, tariff: dict | None, cfg: Config,
         "address": f"{meta.get('address') or ''}, {meta.get('postal_code') or ''} "
                    f"{meta.get('city') or ''}".strip(", "),
         "operator": meta.get("operator"),
+        "owner": meta.get("owner"),
         "distance_m": meta.get("distance_m"),
         "lat": meta.get("lat"), "lon": meta.get("lon"),
         "power_kw": meta.get("power_kw"),
         "power_type": meta.get("power_type"),
+        "connectors": meta.get("connectors"),
         "is_dc": (meta.get("power_type") or "").startswith("DC"),
         "is_focus": bool(meta.get("is_focus")),
         "in_municipality": bool(meta.get("in_municipality")),
         "access": meta.get("access"),
         "opening": meta.get("opening"),
+        "ocpi_id": "/".join(str(meta.get(k)) for k in ("ocpi_country", "ocpi_party",
+                                                        "ocpi_location", "ocpi_uid"))
+                   if meta.get("in_ocpi") else None,
         "source": st.source,
         "status_now": now_status,
         "observed_h": round(st.observed_s / HOUR, 1),
@@ -262,10 +297,102 @@ def _stats_row(meta: dict, st: EvseStats, tariff: dict | None, cfg: Config,
         "median_session_min": round(statistics.median(durs)) if durs else None,
         "p75_session_min": round(_percentile(durs, 0.75)) if durs else None,
         "share_sessions_over_4h": round(sum(d > 240 for d in durs) / len(durs), 3) if durs else None,
+        "duration_hist": _duration_hist(durs),
         "tariff": summarize(tariff) if tariff else None,
-        "tariff_manual": bool(tariff and tariff.get("_manual_source")),
+        "tariff_origin": tariff.get("_origin") if tariff else None,
+        "tariff_source": tariff.get("_manual_source") if tariff else None,
+        "tariff_valid_from": tariff.get("last_updated") if tariff else None,
         "ref_prices": _ref_prices(tariff, meta.get("power_kw"), cfg),
     }
+
+
+DURATION_BINS = [(0, 30), (30, 60), (60, 120), (120, 240), (240, 480), (480, None)]
+
+
+def _duration_hist(durs_min: list[float]) -> list[int]:
+    return [sum(1 for d in durs_min if d >= lo and (hi is None or d < hi))
+            for lo, hi in DURATION_BINS]
+
+
+def _heat(stats_list: list[EvseStats]) -> list[list[float | None]]:
+    occ = [[0.0] * 24 for _ in range(7)]
+    op = [[0.0] * 24 for _ in range(7)]
+    for st in stats_list:
+        for d in range(7):
+            for h in range(24):
+                occ[d][h] += st.occ_how[d][h]
+                op[d][h] += st.op_how[d][h]
+    return [[round(o / p, 3) if p > 0 else None for o, p in zip(orow, prow)]
+            for orow, prow in zip(occ, op)]
+
+
+def _power_summary(rows: list[dict]) -> str:
+    c: dict[tuple, int] = defaultdict(int)
+    for r in rows:
+        c[(r["power_kw"] or 0, "DC" if r["is_dc"] else "AC")] += 1
+    return ", ".join(f"{n} × {kw:g} kW {kind}" for (kw, kind), n in
+                     sorted(c.items(), key=lambda kv: (kv[0][1], kv[0][0])))
+
+
+def _site_rows(rows: list[dict], stats: dict, chosen_runs: dict, start: int, end: int) -> list[dict]:
+    sites = defaultdict(list)
+    for r in rows:
+        sites[r["site_key"]].append(r)
+    out = []
+    for key, rs in sites.items():
+        rs.sort(key=lambda r: r["evse_id"])
+        g = group_minutes({r["evse_id"]: chosen_runs[r["evse_id"]] for r in rs}, start, end)
+        g.pop("full_heatmap", None)
+        with_tariff = [r for r in rs if r["tariff"]]
+        t0 = with_tariff[0] if with_tariff else None
+        durs = [(e - s) / 60 for r in rs for s, e in stats[r["evse_id"]].sessions]
+        focus = any(r["is_focus"] for r in rs)
+        out.append({
+            "site_key": key, "site_name": rs[0]["site_name"], "address": rs[0]["address"],
+            "operator": rs[0]["operator"], "owner": rs[0]["owner"],
+            "access": rs[0]["access"], "opening": rs[0]["opening"],
+            "distance_m": rs[0]["distance_m"], "is_focus": focus,
+            "n_evse": len(rs), "power": _power_summary(rs),
+            "evse_ids": [r["evse_id"] for r in rs],
+            "utilization": round(g["mean_occupied"] / g["mean_operational"], 4)
+            if g.get("mean_operational") else None,
+            "sessions_per_day": round(sum(r["sessions_per_day"] or 0 for r in rs), 2),
+            "median_session_min": round(statistics.median(durs)) if durs else None,
+            "share_sessions_over_4h": round(sum(d > 240 for d in durs) / len(durs), 3)
+            if durs else None,
+            "duration_hist": _duration_hist(durs),
+            "tariff": t0["tariff"]["description"] if t0 else None,
+            "tariff_origin": t0["tariff_origin"] if t0 else None,
+            "tariff_source": t0["tariff_source"] if t0 else None,
+            "tariff_mixed": len({r["tariff"]["description"] for r in with_tariff}) > 1,
+            "tariff_missing": len(rs) - len(with_tariff),
+            "ref_prices": {k: v["total_chf"] for k, v in t0["ref_prices"].items()} if t0 else {},
+            "heatmap": _heat([stats[r["evse_id"]] for r in rs]) if focus else None,
+            **g,
+        })
+    out.sort(key=lambda s: (s["distance_m"] is None, s["distance_m"] or 0))
+    return out
+
+
+def timeline(conn, evse_sources: dict[str, str], end: int, days: int) -> dict:
+    """Status-Verlauf der letzten Tage für die Fokus-Ladepunkte (relativ zu ``start``)."""
+    start = end - days * DAY
+    runs = load_runs(conn, start, end)
+    rows = {}
+    for eid, src in evse_sources.items():
+        merged: list[list] = []
+        for s, e, status in runs.get(eid, {}).get(src, []):
+            if merged and merged[-1][2] == status and s - merged[-1][1] <= 60:
+                merged[-1][1] = e
+            else:
+                merged.append([s, e, status])
+        rows[eid] = [[s - start, e - start, st] for s, e, st in merged]
+    midnights = []
+    d = _local(start).date() + dt.timedelta(days=1)
+    while (t := _local_midnight(d.isoformat())) < end:
+        midnights.append(t - start)
+        d += dt.timedelta(days=1)
+    return {"start": start, "end": end, "midnights": midnights, "rows": rows}
 
 
 def _price_vs_util(rows: list[dict], ref_id: str, min_operational_h: float) -> dict:
@@ -290,7 +417,8 @@ def _price_vs_util(rows: list[dict], ref_id: str, min_operational_h: float) -> d
                              if bins[i] else None} for i in range(4)]
     res["points"] = [{"evse_id": r["evse_id"], "x": round(x, 3), "y": round(y, 4),
                       "site_name": r["site_name"], "operator": r["operator"],
-                      "is_focus": r["is_focus"], "power_kw": r["power_kw"]}
+                      "is_focus": r["is_focus"], "power_kw": r["power_kw"],
+                      "tariff_origin": r["tariff_origin"]}
                      for r, x, y in zip(pts, xs, ys)]
     return res
 
@@ -317,14 +445,18 @@ def _blocking_effect(rows: list[dict]) -> dict:
 
 def _change_effects(changes: list[dict], conn, cfg: Config, window_days: int = 14) -> list[dict]:
     out = []
+    now = int(time.time())
     for c in changes:
         ts = c["ts"]
         res = {k: v for k, v in c.items() if k != "tariff"}
         res["date"] = _local(ts).date().isoformat()
         if c.get("tariff"):
             res["tariff_after"] = summarize(c["tariff"])["description"]
-        for label, a, b in (("before", ts - window_days * DAY, ts), ("after", ts, ts + window_days * DAY)):
-            runs = load_runs(conn, a, min(b, int(time.time())))
+        for label, a, b in (("before", ts - window_days * DAY, ts),
+                            ("after", ts, ts + window_days * DAY)):
+            if a >= now:
+                continue
+            runs = load_runs(conn, a, min(b, now))
             src = preferred_source(runs.get(c["evse_id"], {}))
             if src:
                 st = evse_stats(c["evse_id"], runs[c["evse_id"]][src], cfg, src)
@@ -334,7 +466,7 @@ def _change_effects(changes: list[dict], conn, cfg: Config, window_days: int = 1
     return out
 
 
-def _coverage(conn, start: int, end: int, cfg: Config) -> dict:
+def _coverage(conn, start: int, end: int) -> dict:
     out = {}
     for r in conn.execute("SELECT kind, COUNT(*) n, SUM(ok) ok, MAX(CASE WHEN ok THEN ts END) last_ok "
                           "FROM poll WHERE ts >= ? AND ts < ? GROUP BY kind", (start, end)):
@@ -353,14 +485,14 @@ def analyze(conn, cfg: Config, days: float = 28, end: int | None = None) -> dict
         start = int(first)
     runs = load_runs(conn, start, end)
     meta = _evse_meta(conn)
-    tariffs = current_tariffs(conn, cfg)
+    tariffs = current_tariffs(conn, cfg, end)
     open_now = {}
     for r in conn.execute("SELECT evse_id, source, status, end_ts FROM status_run "
                           "WHERE end_ts >= ?", (end - cfg.max_gap_s,)):
         if r["source"] == "ocpi" or r["evse_id"] not in open_now:
             open_now[r["evse_id"]] = r["status"]
 
-    rows, stats, chosen_runs = [], {}, {}
+    rows, stats, chosen_runs, sources = [], {}, {}, {}
     for eid, m in meta.items():
         per_source = runs.get(eid, {})
         src = preferred_source(per_source)
@@ -369,35 +501,13 @@ def analyze(conn, cfg: Config, days: float = 28, end: int | None = None) -> dict
         st = evse_stats(eid, per_source[src], cfg, src)
         stats[eid] = st
         chosen_runs[eid] = per_source[src]
-        rows.append(_stats_row(m, st, tariffs.get(eid), cfg, days, open_now.get(eid)))
-    rows.sort(key=lambda r: (r["distance_m"] is None, r["distance_m"] or 0))
+        sources[eid] = src
+        rows.append(_stats_row(m, st, tariffs.get(eid), cfg, open_now.get(eid)))
+    rows.sort(key=lambda r: (r["distance_m"] is None, r["distance_m"] or 0, r["evse_id"]))
 
     focus_rows = [r for r in rows if r["is_focus"]]
-    focus_ids = {r["evse_id"] for r in focus_rows}
-    occ = [[0.0] * 24 for _ in range(7)]
-    op = [[0.0] * 24 for _ in range(7)]
-    for eid in focus_ids:
-        for d in range(7):
-            for h in range(24):
-                occ[d][h] += stats[eid].occ_how[d][h]
-                op[d][h] += stats[eid].op_how[d][h]
-    heat = [[round(o / p, 3) if p > 0 else None for o, p in zip(orow, prow)]
-            for orow, prow in zip(occ, op)]
-
-    sites = defaultdict(list)
-    for r in focus_rows:
-        sites[r["site_key"]].append(r)
-    site_rows = []
-    for key, rs in sites.items():
-        g = group_minutes({r["evse_id"]: chosen_runs[r["evse_id"]] for r in rs}, start, end)
-        g.pop("full_heatmap", None)
-        site_rows.append({"site_key": key, "site_name": rs[0]["site_name"],
-                          "address": rs[0]["address"], "operator": rs[0]["operator"],
-                          "distance_m": rs[0]["distance_m"], "n_evse": len(rs),
-                          "sessions_per_day": round(sum(r["sessions_per_day"] or 0 for r in rs), 2),
-                          "tariff": rs[0]["tariff"]["description"] if rs[0]["tariff"] else None,
-                          **g})
-    site_rows.sort(key=lambda s: s["distance_m"] or 0)
+    focus_ids = [r["evse_id"] for r in focus_rows]
+    sites = _site_rows(rows, stats, chosen_runs, start, end)
     group = group_minutes({eid: chosen_runs[eid] for eid in focus_ids}, start, end)
     fdurs = [(e - s) / 60 for eid in focus_ids for s, e in stats[eid].sessions]
     group_sessions = {
@@ -418,25 +528,39 @@ def analyze(conn, cfg: Config, days: float = 28, end: int | None = None) -> dict
             daily.append({"date": day, "evse_id": eid, "occupied_h": round(occ_s / HOUR, 3),
                           "operational_h": round(op_s / HOUR, 3), "sessions": n,
                           "utilization": round(occ_s / op_s, 4) if op_s else None})
+    api_ids = api_tariff_evses(conn)
 
     return {
         "generated_at": end,
         "window": {"start": start, "end": end, "days": round((end - start) / DAY, 2)},
         "site": {"name": cfg.site_name, "address": cfg.address, "lat": cfg.lat, "lon": cfg.lon,
-                 "focus_radius_m": cfg.focus_radius_m, "record_radius_km": cfg.record_radius_km},
+                 "municipality": cfg.municipality, "focus_radius_m": cfg.focus_radius_m},
+        "report_url": cfg.report_url,
         "reference_sessions": [vars(s) for s in cfg.ref_sessions],
-        "coverage": _coverage(conn, start, end, cfg),
-        "focus": {"evses": focus_rows, "sites": site_rows, "group": group,
-                  "group_sessions": group_sessions, "heatmap": heat},
-        "region": {
-            "n_evse": len(rows), "n_ac": len(ac), "n_dc": len(dc),
-            "n_with_tariff": sum(1 for r in rows if r["tariff"]),
+        "duration_bins": DURATION_BINS,
+        "coverage": _coverage(conn, start, end),
+        "focus": {"evses": focus_rows, "group": group, "group_sessions": group_sessions,
+                  "heatmap": _heat([stats[eid] for eid in focus_ids]),
+                  "timeline": timeline(conn, {eid: sources[eid] for eid in focus_ids},
+                                       end, cfg.timeline_days)},
+        "sites": sites,
+        "municipality": {
+            "name": cfg.municipality,
+            "n_evse": len(rows), "n_sites": len(sites), "n_ac": len(ac), "n_dc": len(dc),
+            "tariff_coverage": {
+                "api": sum(1 for r in rows if r["tariff_origin"] == "api"),
+                "manual": sum(1 for r in rows if r["tariff_origin"] == "manual"),
+                "missing": sum(1 for r in rows if not r["tariff"]),
+                "manual_overrides_api": sorted(r["evse_id"] for r in rows
+                                               if r["tariff_origin"] == "manual"
+                                               and r["evse_id"] in api_ids),
+            },
             "ac_price_vs_utilization": _price_vs_util(ac, ref["kurz"], min_h),
             "ac_price_vs_utilization_pendler": _price_vs_util(ac, ref["pendler"], min_h),
             "dc_price_vs_utilization": _price_vs_util(dc, ref["schnell"], min_h),
             "blocking_effect": _blocking_effect(ac),
         },
-        "tariff_changes": _change_effects(tariff_changes(conn), conn, cfg),
+        "tariff_changes": _change_effects(tariff_changes(conn, cfg), conn, cfg),
         "evses": rows,
         "daily": daily,
         "attribution": "Datenquelle: ich-tanke-strom.ch, Bundesamt für Energie BFE "

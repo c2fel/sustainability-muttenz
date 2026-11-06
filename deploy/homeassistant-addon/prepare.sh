@@ -9,4 +9,5 @@ rm -rf "$HERE/ladestatistik/ladestatistik"
 cp -r "$ROOT/ladestatistik" "$HERE/ladestatistik/ladestatistik"
 find "$HERE/ladestatistik/ladestatistik" -name __pycache__ -prune -exec rm -rf {} +
 cp "$ROOT/config.example.toml" "$HERE/ladestatistik/config.example.toml"
+cp "$ROOT/tarife.toml" "$HERE/ladestatistik/tarife.toml"
 echo "Build-Kontext bereit: $HERE/ladestatistik"

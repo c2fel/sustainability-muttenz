@@ -1,11 +1,12 @@
 # Beispiel für einen lokal verwalteten Tunnel (/etc/cloudflared/config.yml).
-# Der bestehende Tunnel für charging.jumut.ch (EVCC) bekommt einfach einen
-# zweiten Hostnamen – es braucht keinen neuen Tunnel.
+# Der bestehende Tunnel für charging.jumut.ch (EVCC) bekommt zusätzliche Regeln –
+# es braucht keinen neuen Tunnel. Regeln werden von oben nach unten geprüft,
+# die erste passende gewinnt.
 #
 # Wird der Tunnel im Cloudflare-Dashboard verwaltet (Zero Trust → Networks →
-# Tunnels → <Tunnel> → Public Hostname → Add), dieselben Werte dort eintragen.
-# Beim Home-Assistant-Add-on "Cloudflared" stattdessen unter
-# "additional_hosts" eintragen (siehe docs/deployment.md).
+# Tunnels → <Tunnel> → Public Hostname → Add), dieselben Werte dort eintragen
+# (Feld "Path" für die /api-Regel). Beim Home-Assistant-Add-on "Cloudflared"
+# unter "additional_hosts" (siehe docs/deployment.md).
 
 tunnel: <TUNNEL-UUID>
 credentials-file: /etc/cloudflared/<TUNNEL-UUID>.json
@@ -14,7 +15,16 @@ ingress:
   # bestehend: EVCC (durch Cloudflare Access geschützt)
   - hostname: charging.jumut.ch
     service: http://localhost:7070
-  # neu: Ladestatistik-Dashboard (statische Dateien)
-  - hostname: ladestatistik.jumut.ch
+
+  # später: API unter stats.jumut.ch/api/* auf einen eigenen Dienst.
+  # Muss VOR der allgemeinen stats-Regel stehen. Der Pfad wird nicht entfernt –
+  # der API-Dienst bekommt Anfragen auf /api/... und muss diesen Präfix kennen.
+  # - hostname: stats.jumut.ch
+  #   path: ^/api/
+  #   service: http://localhost:8100
+
+  # Web-Root: / (Übersicht), /reports/charging/ (Ladestatistik), künftige /reports/*
+  - hostname: stats.jumut.ch
     service: http://localhost:8099
+
   - service: http_status:404

@@ -196,6 +196,55 @@ def annotate(cat: dict[str, Evse], lat: float, lon: float,
             e.in_municipality = geo.point_in_geometry(e.lat, e.lon, municipality_geometry)
 
 
+ACCESS_DE = {
+    "Free publicly accessible": "öffentlich",
+    "Paying publicly accessible": "öffentlich, Parkplatz kostenpflichtig",
+    "Restricted access": "eingeschränkt",
+    "Test Station": "Teststation",
+}
+
+
+def access_de(access: str | None) -> str:
+    return ACCESS_DE.get(access or "", access or "")
+
+
+def annotate_municipality(cat: dict[str, Evse], cfg) -> str | None:
+    """Distanz + Gemeindezugehörigkeit setzen. Gibt den Gemeindenamen zurück.
+
+    Fallback ohne swisstopo (und ohne Cache): Ortsname aus den Stammdaten.
+    """
+    try:
+        muni = geo.municipality_at(cfg.lat, cfg.lon, cache=cfg.municipality_cache)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Gemeindegrenze nicht verfügbar (%s) – Fallback über Ortsnamen", exc)
+        annotate(cat, cfg.lat, cfg.lon, None)
+        for e in cat.values():
+            e.in_municipality = cfg.municipality.lower() in (e.city or "").lower()
+        return cfg.municipality
+    if muni.get("name") and muni["name"] != cfg.municipality:
+        log.warning("Standort liegt in %s, konfiguriert ist %s", muni["name"], cfg.municipality)
+    annotate(cat, cfg.lat, cfg.lon, muni.get("geometry"))
+    return muni.get("name")
+
+
+def in_scope(e: Evse, cfg) -> bool:
+    """Wird dieser Ladepunkt aufgezeichnet? (Gemeinde, optionaler Umkreis, Fokus-Liste)"""
+    if e.evse_id in cfg.exclude_evse_ids:
+        return False
+    if e.evse_id in cfg.focus_evse_ids:
+        return True
+    if cfg.record_municipality and e.in_municipality:
+        return True
+    return bool(cfg.record_radius_km) and e.distance_m is not None and \
+        e.distance_m <= cfg.record_radius_km * 1000
+
+
+def is_focus(e: Evse, cfg) -> bool:
+    """Nahbereich: Detailauswertung pro Standort."""
+    return e.evse_id in cfg.focus_evse_ids or \
+        (e.distance_m is not None and e.distance_m <= cfg.focus_radius_m)
+
+
 def fetch_all(with_oicp: bool = True):
     """Lädt Standorte, Tarife und (optional) OICP-Daten. Fehler einer Quelle sind
     nicht fatal, solange die andere Quelle verfügbar ist."""

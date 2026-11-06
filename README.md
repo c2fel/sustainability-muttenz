@@ -7,8 +7,10 @@ kosten sie, und wie hängt die Nutzung vom Preis ab?
 Datenquelle ist [ich-tanke-strom.ch](https://www.ich-tanke-strom.ch) des Bundesamts für
 Energie (BFE): die neue OCPI-API (Standorte, **Tarife**, Live-Status) und die bisherigen
 OICP-Dateien (alle Betreiber). Ein Collector auf dem Raspberry Pi zeichnet den Status
-laufend auf, daraus entstehen Auslastung, Ladevorgänge, Standzeiten und ein Dashboard,
-das über den bestehenden Cloudflare-Tunnel publiziert werden kann.
+**aller Ladepunkte in der Gemeinde Muttenz** laufend auf; die Standorte in unmittelbarer
+Nähe (≤ 800 m) werden einzeln im Detail ausgewertet. Fehlende Preise werden manuell in
+[`tarife.toml`](tarife.toml) erfasst. Das Dashboard erscheint unter
+**`https://stats.jumut.ch/reports/charging/`** (über den bestehenden Cloudflare-Tunnel).
 
 ## Schritt 1: Ladepunkte in der Nähe (Stand 6.11.2026)
 
@@ -31,17 +33,23 @@ Python ≥ 3.11, keine weiteren Abhängigkeiten.
 ```bash
 cp config.example.toml config.toml
 
-# Ladepunkte im Umkreis / in der Gemeinde finden (CSV + Markdown-Tabelle)
-python3 -m ladestatistik -c config.toml discover --radius 1000 --municipality
+# Ladepunkte in der Gemeinde finden (CSV + Markdown-Tabelle)
+python3 -m ladestatistik -c config.toml discover
 
 # Aufzeichnung starten (Dauerbetrieb; --once für einen Testlauf)
 python3 -m ladestatistik -c config.toml collect
 
-# Dashboard erzeugen: site/index.html + site/data/{summary.json,daily.csv,evses.csv}
+# Web-Root erzeugen: site/index.html + site/reports/charging/{index.html,data/*}
 python3 -m ladestatistik -c config.toml publish --days 28
 
-# Zustand prüfen
+# Web-Root ausliefern (http://127.0.0.1:8099/reports/charging/)
+python3 -m ladestatistik -c config.toml serve
+
+# Zustand prüfen (inkl. welche Tarife noch fehlen)
 python3 -m ladestatistik -c config.toml health
+
+# neue Stationen ohne Tarif in tarife.toml ergänzen
+python3 -m ladestatistik -c config.toml tariff-template --out tarife.toml
 
 # Tests
 python3 -m unittest discover -s tests
@@ -49,22 +57,26 @@ python3 -m unittest discover -s tests
 
 ## Was wird ausgewertet?
 
-* **Nahbereich (≤ 800 m):** Auslastung je Ladepunkt und Standort, Ladevorgänge pro Tag,
-  Standzeiten (Median, Anteil > 4 h), Heatmap Wochentag × Stunde, Anteil der Zeit, in der
-  *kein* Ladepunkt frei war (Indikator für ungedeckte Nachfrage).
-* **Tarife:** Kosten von Referenz-Ladevorgängen (Einkauf 1 h, Pendler 9 h, Nacht 12 h,
-  Schnellladen) inkl. Zeit- und Blockiergebühren – vergleichbar über alle Tarifmodelle.
-* **Preis ↔ Auslastung (Region 15 km):** Regression, Elastizität, Preisquartile;
-  Vorher/Nachher-Vergleich bei jeder beobachteten Tarifänderung.
+* **Nahbereich (≤ 800 m, 5 Standorte / 11 Ladepunkte):** Steckbrief pro Standort
+  (Betreiber, Eigentümer, Zugang, Öffnungszeiten, Tarif, OCPI-IDs), Auslastung,
+  Ladevorgänge pro Tag, Standzeiten-Verteilung, Heatmap Wochentag × Stunde, Anteil der
+  Zeit ohne freien Ladepunkt und ein 7-Tage-Verlauf pro Ladepunkt.
+* **Gemeinde Muttenz (18 Standorte / 49 Ladepunkte):** Vergleichstabelle mit Auslastung,
+  Standzeiten und Tarifen.
+* **Tarife:** Kosten von Referenz-Ladevorgängen (Einkauf 1 h, Pendler 9 h, Nacht 12 h)
+  inkl. Zeit- und Blockiergebühren – vergleichbar über alle Tarifmodelle.
+* **Preis ↔ Auslastung:** Vergleich der Muttenzer Standorte und Vorher/Nachher-Vergleich
+  bei jeder Tarifänderung (BFE-API oder neuer Eintrag in `tarife.toml`).
 
 Methodik und Grenzen: [docs/methodik.md](docs/methodik.md) ·
 Datenquellen und Nutzungsbedingungen: [docs/datenquellen.md](docs/datenquellen.md)
 
-## Betrieb auf dem Raspberry Pi
+## Betrieb und Veröffentlichung
 
-systemd, Docker Compose oder Home-Assistant-OS-Add-on, Cloudflare-Tunnel
-(`ladestatistik.jumut.ch` neben `charging.jumut.ch`) und optionaler Push der Daten in
-den Branch `data`: **[docs/deployment.md](docs/deployment.md)**
+systemd, Docker Compose oder Home-Assistant-OS-Add-on; Veröffentlichung unter
+`stats.jumut.ch` (Übersicht `/`, Ladestatistik `/reports/charging/`, Platz für `/api/v1/…`),
+Zugriffsschutz pro Pfad und optionaler Push der Daten in den Branch `data`:
+**[docs/deployment.md](docs/deployment.md)**
 
 ## Aufbau
 
@@ -76,8 +88,10 @@ ladestatistik/
   tariffs.py     OCPI-Tarifrechner, Klartext, Kennzahlen
   collector.py   Polling-Schleife -> SQLite (Status-Intervalle, Tarifversionen)
   analyze.py     Auslastung, Ladevorgänge, Heatmap, Preis-Analyse
-  publish.py     statisches Dashboard + CSV/JSON
+  publish.py     Web-Root: Übersicht + reports/charging/ (Dashboard, CSV/JSON)
+  serve.py       statischer Webserver für stats.jumut.ch (Cache-Header, kein Listing)
   templates/dashboard.html
+tarife.toml      manuell erfasste Tarife (Preisverlauf, versioniert)
 deploy/          systemd, Docker, Home-Assistant-Add-on, cloudflared, git-publish.sh
 docs/            Standorte, Datenquellen, Methodik, Betrieb
 tests/           Unit-Tests (unittest)
@@ -86,11 +100,12 @@ tests/           Unit-Tests (unittest)
 ## Nächste Schritte
 
 1. Collector auf dem Pi installieren und 4–8 Wochen laufen lassen.
-2. Tarife von IWB, Coop/Energie 360° und Migros in der App ablesen und als
-   `[[manual_tariff]]` erfassen (bis das BFE sie liefert).
-3. Vor einer öffentlichen Publikation die kommerzielle Nutzung beim BFE abklären
-   (ich-tanke-strom@bfe.admin.ch).
+2. Offene Tarife in [`tarife.toml`](tarife.toml) erfassen (19 Einträge: IWB, Coop/Energie
+   360°, Migros, MOVE, eCarUp, Shell, AVIA).
+3. `stats.jumut.ch` im bestehenden Tunnel anlegen und Zugriff festlegen (öffentlich oder
+   Cloudflare Access). Vor einer öffentlichen Publikation die kommerzielle Nutzung beim
+   BFE abklären (ich-tanke-strom@bfe.admin.ch).
 4. Später: eigene Ladepunkte über EVCC steuern und deren Sitzungen (EVCC-API) mit der
-   Umgebung vergleichen.
+   Umgebung vergleichen; API unter `stats.jumut.ch/api/v1/…`.
 
 Datenquelle: ich-tanke-strom.ch, Bundesamt für Energie BFE.

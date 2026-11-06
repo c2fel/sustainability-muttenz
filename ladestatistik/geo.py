@@ -39,7 +39,9 @@ def municipality_at(lat: float, lon: float, cache: Path | None = None) -> dict:
     Rückgabe: ``{"name", "bfs_nr", "kanton", "geometry"}``.
     """
     if cache and cache.exists():
-        return json.loads(cache.read_text())
+        cached = json.loads(cache.read_text())
+        if point_in_geometry(lat, lon, cached.get("geometry")):
+            return cached
     data = http.get_json(f"{GEOADMIN}/MapServer/identify", params={
         "geometry": f"{lon},{lat}", "geometryType": "esriGeometryPoint", "sr": 4326,
         "layers": f"all:{GEMEINDE_LAYER}", "tolerance": 0,

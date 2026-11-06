@@ -9,15 +9,14 @@ lat = 47.531982
 lon = 7.649472
 
 [scope]
-# Alles in diesem Umkreis wird aufgezeichnet. Ein grosser Umkreis liefert
-# genug Stationen mit unterschiedlichen Preisen für die Preis-Auslastungs-
-# Analyse (15 km ≈ Basel, Birsfelden, Pratteln, Münchenstein, Liestal-Rand).
-record_radius_km = 15
-# Zusätzlich alle Ladepunkte innerhalb der Gemeindegrenze (swisstopo).
+# Aufgezeichnet werden alle Ladepunkte innerhalb der Gemeindegrenze (swisstopo).
+municipality = "Muttenz"        # Fallback, falls swisstopo nicht erreichbar ist
 record_municipality = true
-# "Nahbereich" für Dashboard/Auswertung (Konkurrenz in Gehdistanz).
+# Optional zusätzlich ein Umkreis in km (0 = aus, nur Gemeinde).
+record_radius_km = 0
+# "Nahbereich": Detailauswertung pro Standort (Steckbrief, Heatmap, 7-Tage-Verlauf).
 focus_radius_m = 800
-# Zusätzliche Fokus-Ladepunkte unabhängig von der Distanz:
+# Zusätzliche Nahbereichs-Ladepunkte unabhängig von der Distanz:
 focus_evse_ids = [
   # "CH*IWB*E55311", "CH*IWB*E55312",   # IWB Hauptstrasse 2 (1.06 km)
 ]
@@ -40,6 +39,7 @@ flush_interval_s = 300          # Intervall-Verlängerungen gesammelt schreiben 
 time_mode = "session"
 min_session_s = 300             # kürzere Belegungen = Rauschen
 merge_gap_s = 180               # Unterbrüche < 3 min = gleicher Ladevorgang
+timeline_days = 7               # Verlauf im Nahbereich
 
 # Referenz-Ladevorgänge für den Preisvergleich (weekday: 0 = Montag)
 [[analysis.reference_session]]
@@ -78,22 +78,16 @@ duration_min = 30
 energy_kwh = 25
 max_power_kw = 150
 
-# Manuell erfasste Tarife (Bruttopreise inkl. MWST) für Ladepunkte, deren Tarif
-# (noch) nicht in der OCPI-API steht. Werte aus der Betreiber-App / Website
-# übernehmen und Quelle + Datum angeben. Überschreibt einen API-Tarif.
-#
-# [[manual_tariff]]
-# evse_ids = ["CH*IWB*E55318", "CH*IWB*E55319"]
-# valid_from = "2026-11-06"
-# source = "Swisscharge-App, Screenshot 2026-11-06"
-# energy_chf_kwh = 0.00
-# time_chf_h = 0.00          # Zeitpreis ab Minute 0 (optional)
-# blocking_chf_h = 0.00      # Zeitpreis ab blocking_after_min (ersetzt time_chf_h)
-# blocking_after_min = 240
-# blocking_start = "08:00"   # optional: Blockiergebühr nur tagsüber
-# blocking_end = "20:00"
-# flat_chf = 0.00            # Startgebühr pro Ladevorgang
+[tariffs]
+# Manuell erfasste Tarife für Ladepunkte ohne Tarif in der BFE-API (versioniert im Repo).
+# Format und Felder: siehe Kopf von tarife.toml.
+manual_file = "tarife.toml"
 
 [publish]
+# Web-Root für stats.jumut.ch; der Report liegt unter <out_dir>/<report_path>/
 out_dir = "site"
+report_path = "reports/charging"
+base_url = "https://stats.jumut.ch"
 title = "Ladestatistik Muttenz"
+# Suchmaschinen fernhalten (robots.txt + noindex), bis die Publikation geklärt ist
+allow_indexing = false

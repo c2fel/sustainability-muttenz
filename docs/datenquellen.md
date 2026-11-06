@@ -61,17 +61,20 @@ requires permission of the data owner.*
   [ich-tanke-strom@bfe.admin.ch](mailto:ich-tanke-strom@bfe.admin.ch), bevor
   Auswertungen öffentlich publiziert werden.
 
-## Lücken und Phase 2 (Tarife ohne API)
+## Lücken: Tarife ohne API
 
-Für Stationen ohne API-Tarif (in Muttenz: IWB, Coop/Energie 360°, Migros, MOVE, eCarUp,
-Shell, AVIA):
+In Muttenz liefert die BFE-API zurzeit nur für 3 von 49 Ladepunkten einen Tarif
+(Swisscharge-Gastgeber). Für die übrigen Standorte (IWB, Coop/Energie 360°, Migros, MOVE,
+eCarUp, Shell, AVIA):
 
-1. **Manuell erfassen** (sofort, zuverlässig): Preis in der jeweiligen App ablesen
-   (Swisscharge/JOYA, IWB, Migros, MOVE, eCarUp) und in `config.toml` als
-   `[[manual_tariff]]` mit Quelle und Datum eintragen. Bei 5–10 Standorten ist das
-   weniger Aufwand als ein Scraper, und Preise ändern selten.
+1. **Manuell erfassen** in [`tarife.toml`](../tarife.toml): Die Datei enthält bereits
+   für jeden Standort ohne API-Tarif einen Eintrag mit den EVSE-IDs; nur Preise, Datum
+   und Quelle ergänzen (Preise aus der jeweiligen App bzw. am Display ablesen).
+   Neue Stationen ergänzt
+   `python -m ladestatistik -c config.toml tariff-template --out tarife.toml`.
 2. **Abwarten**: IWB und Energie 360° liefern bereits Tarif-IDs – die Tarifobjekte
-   dürften in der API nachgereicht werden. Der Collector erkennt das automatisch.
+   dürften in der API nachgereicht werden. Der Collector erkennt das automatisch;
+   `health` meldet, wo ein manueller Eintrag einen API-Tarif überdeckt.
 3. **Webscraping** (nur falls nötig): vorher Nutzungsbedingungen der jeweiligen
    Plattform prüfen; viele Apps verbieten automatisierte Abfragen. Ein Scraper wäre ein
    eigenes Modul, das Tarife im OCPI-Format liefert – die Kostenrechnung und Auswertung

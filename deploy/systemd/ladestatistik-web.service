@@ -1,13 +1,14 @@
-# Statischer Webserver für das Dashboard, nur lokal erreichbar.
-# Öffentlich wird es über den Cloudflare-Tunnel (deploy/cloudflared/).
+# Statischer Webserver für den Web-Root von stats.jumut.ch, nur lokal erreichbar.
+# Öffentlich wird er über den Cloudflare-Tunnel (deploy/cloudflared/).
 [Unit]
-Description=Ladestatistik Muttenz – Webserver (127.0.0.1:8099)
+Description=Ladestatistik Muttenz – Webserver stats.jumut.ch (127.0.0.1:8099)
 After=network.target
 
 [Service]
 Type=simple
 User=ladestatistik
-ExecStart=/usr/bin/python3 -m http.server 8099 --bind 127.0.0.1 --directory /opt/ladestatistik/site
+WorkingDirectory=/opt/ladestatistik
+ExecStart=/usr/bin/python3 -m ladestatistik -c /opt/ladestatistik/config.toml serve --host 127.0.0.1 --port 8099
 Restart=always
 NoNewPrivileges=true
 ProtectSystem=strict

@@ -76,5 +76,13 @@ gemäss swisstopo (BFS-Nr. 2770).
 
 Die OCPI-API des BFE ist erst seit Ende Oktober 2026 in Betrieb; weitere Betreiber und
 Tarife kommen laufend dazu. Der Collector übernimmt neue Tarife automatisch (Katalog-
-Update alle 6 h). Bis dahin können Tarife manuell in `config.toml`
-(`[[manual_tariff]]`) erfasst werden – siehe [datenquellen.md](datenquellen.md).
+Update alle 6 h). Bis dahin werden die Tarife manuell in [`tarife.toml`](../tarife.toml)
+erfasst – die Datei enthält bereits alle 19 offenen Einträge (Standorte, AC/DC getrennt)
+mit den EVSE-IDs, siehe [datenquellen.md](datenquellen.md).
+
+## Überwachung
+
+Der Collector zeichnet **alle 49 Ladepunkte der Gemeinde** auf. Die 11 Ladepunkte im
+Nahbereich erscheinen im Dashboard zusätzlich mit Steckbrief pro Standort, Heatmap,
+Standzeiten-Verteilung und 7-Tage-Verlauf:
+<https://stats.jumut.ch/reports/charging/>

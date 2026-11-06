@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Pusht das erzeugte Dashboard + Daten (ohne Rohdatenbank) in den Branch "data".
+# Pusht den erzeugten Web-Root (Übersicht, reports/charging/ mit Dashboard + CSV/JSON,
+# ohne Rohdatenbank) in den Branch "data", Ordner docs/.
 #
 # Voraussetzungen (einmalig, siehe docs/deployment.md):
 #   - Deploy-Key mit Schreibrecht für dieses Repo, in ~/.ssh/config als Host "github-ladestatistik"
@@ -30,10 +31,11 @@ if [ $(( $(date +%s) - last )) -lt "$MIN_INTERVAL_S" ]; then
   exit 0
 fi
 
+# Web-Root 1:1 spiegeln (gleiche Pfade wie auf stats.jumut.ch)
+git rm -rq --ignore-unmatch docs
 mkdir -p docs
-cp "$SITE_DIR/index.html" docs/index.html
-mkdir -p docs/data
-cp "$SITE_DIR"/data/*.json "$SITE_DIR"/data/*.csv docs/data/
+cp -R "$SITE_DIR"/. docs/
+find docs -name '*.tmp' -delete
 
 git add -A docs
 if git diff --cached --quiet; then

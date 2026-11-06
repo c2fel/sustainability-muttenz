@@ -1,5 +1,15 @@
 # Methodik
 
+## Umfang
+
+* **Gemeinde Muttenz:** Aufgezeichnet werden alle Ladepunkte innerhalb der
+  Gemeindegrenze gemäss swisstopo (BFS-Nr. 2770) – zurzeit 49 Ladepunkte an 18 Standorten.
+  Die Postleitzahl ist dafür ungeeignet (z.B. liegt Vitra, PLZ 4127 Birsfelden, in Muttenz).
+* **Nahbereich (≤ 800 m Luftlinie):** 5 Standorte / 11 Ladepunkte mit Detailauswertung
+  pro Standort (Steckbrief, Heatmap, Standzeiten, 7-Tage-Verlauf). Erweiterbar über
+  `focus_radius_m` oder `focus_evse_ids`.
+* Optional lässt sich zusätzlich ein Umkreis aufzeichnen (`record_radius_km`, Standard 0).
+
 ## Aufzeichnung
 
 Der Collector speichert den Status jedes Ladepunkts als **Intervalle**
@@ -62,36 +72,47 @@ strikt angewendet.
 
 ## Preis ↔ Auslastung
 
-Ziel: Aussagen wie „ab Preis X wird eine Station Y % weniger genutzt“. Zwei Ansätze,
-beide im Dashboard:
+Ziel: Aussagen wie „ab Preis X wird eine Station Y % weniger genutzt“. Grundlage sind die
+Tarife aus der BFE-API und die manuell erfassten Tarife in `tarife.toml`.
 
-1. **Querschnitt** (sofort möglich, sobald einige Wochen Daten vorliegen): alle
-   AC-Ladepunkte im Umkreis von 15 km mit Tarif. Ausgewiesen werden lineare
-   Regression (Prozentpunkte Auslastung je 10 Rp./kWh), Korrelation r,
-   Preiselastizität (log-log) und die mittlere Auslastung je Preisquartil.
-   *Achtung:* Das ist Korrelation. Lage (Bahnhof, Einkaufszentrum, Wohnquartier),
-   Leistung, Zugänglichkeit und Bekanntheit erklären Auslastung meist stärker als der
-   Preis. Darum der grosse Umkreis: Muttenz allein hat zu wenige Stationen mit Tarif.
+1. **Vergleich der Standorte in Muttenz** (Querschnitt): alle AC-Ladepunkte mit Tarif und
+   ≥ 3 Tagen Beobachtung. Ausgewiesen werden lineare Regression (Prozentpunkte Auslastung
+   je 10 Rp./kWh), Korrelation r, Preiselastizität (log-log) und – ab 8 Ladepunkten – die
+   mittlere Auslastung je Preisquartil.
+   *Achtung:* Mit ~40 AC-Ladepunkten an ~16 Standorten ist das eine kleine Stichprobe,
+   und Ladepunkte am selben Standort sind nicht unabhängig. Lage, Zugänglichkeit
+   (Firmenparkplatz vs. öffentlich) und Öffnungszeiten (Coop/Migros) beeinflussen die
+   Auslastung stark. Die Zahlen beschreiben Muttenz, sie beweisen keinen Preiseffekt.
+   Hilfreich ist der Vergleich ähnlicher Standorte (öffentlich, 24/7, 22 kW AC).
 
 2. **Vorher/Nachher** (belastbarer): Ändert ein Betreiber den Tarif, vergleicht das Tool
    die Auslastung desselben Ladepunkts 14 Tage vor und nach der Änderung. Standort und
-   Hardware bleiben gleich, damit ist der Preiseffekt viel sauberer isoliert.
-   Saisoneffekte (Ferien, Wetter) über Vergleichsstationen ohne Preisänderung
-   kontrollieren (Differenz-in-Differenzen) – sinnvoll, sobald mehrere Änderungen
-   beobachtet wurden.
+   Hardware bleiben gleich, damit ist der Preiseffekt viel sauberer isoliert. Erkannt
+   werden neue Tarifversionen aus der BFE-API und neue Einträge in `tarife.toml` (gleiche
+   `evse_ids`, späteres `valid_from`). Saisoneffekte (Ferien, Wetter) über die übrigen
+   Muttenzer Ladepunkte ohne Preisänderung kontrollieren (Differenz-in-Differenzen),
+   sobald mehrere Änderungen beobachtet wurden.
 
 Zusätzlich: **Standzeit mit vs. ohne Zeitgebühr** – zeigt, ob Blockier-/Zeitgebühren
 die Belegungsdauer verkürzen (wichtig für die Wirtschaftlichkeit: kürzere Standzeiten =
 mehr Ladevorgänge pro Ladepunkt).
 
+### Manuell erfasste Tarife
+
+`tarife.toml` enthält für jeden Muttenzer Standort ohne API-Tarif einen Eintrag (AC und
+DC getrennt). Preise brutto (inkl. MWST) so eintragen, wie sie in der App angezeigt werden,
+mit `valid_from` und `source`. Ein manueller Tarif hat Vorrang vor der API;
+`python -m ladestatistik health` zeigt, wo inzwischen ein API-Tarif vorliegt. Bei einer
+Preisänderung einen **neuen** Eintrag mit neuem Datum ergänzen und den alten stehen lassen.
+
 ## Wie viele Daten braucht es?
 
 * Heatmap/Auslastung im Nahbereich: ab ~2 Wochen aussagekräftig, 6–8 Wochen für
   saisonale Robustheit.
-* Querschnitt Preis↔Auslastung: Ladepunkte mit ≥ 3 Tagen Beobachtung; Ergebnisse
-  erst bei n ≥ 30 interpretieren.
+* Vergleich der Standorte: erst interpretieren, wenn (fast) alle Tarife erfasst sind und
+  mindestens 4 Wochen Daten vorliegen.
 * Vorher/Nachher: hängt davon ab, wie oft Betreiber Preise ändern – das Tool zeichnet
-  jede Tarifversion auf (`tariff_version`), damit nichts verloren geht.
+  jede Tarifversion auf (`tariff_version`, `tarife.toml`), damit nichts verloren geht.
 
 ## Grenzen
 
