@@ -218,3 +218,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Ladestatistik
+config.toml
+data/*.sqlite
+data/*.sqlite-*
+data/cache/
+publish-repo/
+deploy/homeassistant-addon/ladestatistik/ladestatistik/
+deploy/homeassistant-addon/ladestatistik/config.example.toml

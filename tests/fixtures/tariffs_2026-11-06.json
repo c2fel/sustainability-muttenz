@@ -1,0 +1,162 @@
+[
+ {
+  "country_code": "CH",
+  "party_id": "SUI",
+  "id": "4335",
+  "currency": "CHF",
+  "elements": [
+   {
+    "price_components": [
+     {
+      "type": "FLAT",
+      "price": 0,
+      "step_size": 1,
+      "vat": 8.1
+     }
+    ]
+   },
+   {
+    "price_components": [
+     {
+      "type": "TIME",
+      "price": 1.11,
+      "step_size": 60,
+      "vat": 8.1
+     },
+     {
+      "type": "ENERGY",
+      "price": 0.36,
+      "step_size": 1,
+      "vat": 8.1
+     }
+    ]
+   }
+  ],
+  "tax_included": "NO",
+  "last_updated": "2026-11-02T08:29:29Z"
+ },
+ {
+  "country_code": "CH",
+  "party_id": "SUI",
+  "id": "4091",
+  "currency": "CHF",
+  "elements": [
+   {
+    "price_components": [
+     {
+      "type": "FLAT",
+      "price": 0,
+      "step_size": 1,
+      "vat": 8.1
+     }
+    ]
+   },
+   {
+    "price_components": [
+     {
+      "type": "TIME",
+      "price": 1.67,
+      "step_size": 60,
+      "vat": 8.1
+     },
+     {
+      "type": "ENERGY",
+      "price": 0.32,
+      "step_size": 1,
+      "vat": 8.1
+     }
+    ]
+   }
+  ],
+  "tax_included": "NO",
+  "last_updated": "2026-11-02T08:29:23Z"
+ },
+ {
+  "country_code": "CH",
+  "party_id": "360",
+  "id": "1459",
+  "currency": "CHF",
+  "elements": [
+   {
+    "price_components": [
+     {
+      "type": "TIME",
+      "price": 0,
+      "step_size": 1,
+      "vat": 8.1
+     }
+    ],
+    "restrictions": {
+     "min_duration": 0,
+     "max_duration": 14400
+    }
+   },
+   {
+    "price_components": [
+     {
+      "type": "TIME",
+      "price": 4.44,
+      "step_size": 60,
+      "vat": 8.1
+     },
+     {
+      "type": "ENERGY",
+      "price": 0.5,
+      "step_size": 1,
+      "vat": 8.1
+     }
+    ],
+    "restrictions": {
+     "start_time": "08:00",
+     "end_time": "20:00"
+    }
+   },
+   {
+    "price_components": [
+     {
+      "type": "ENERGY",
+      "price": 0.5,
+      "step_size": 1,
+      "vat": 8.1
+     }
+    ]
+   }
+  ],
+  "tax_included": "NO",
+  "last_updated": "2026-11-02T08:28:43Z"
+ },
+ {
+  "country_code": "CH",
+  "party_id": "IWB",
+  "id": "997",
+  "currency": "CHF",
+  "elements": [
+   {
+    "price_components": [
+     {
+      "type": "TIME",
+      "price": 4.44,
+      "step_size": 60,
+      "vat": 8.1
+     }
+    ],
+    "restrictions": {
+     "start_time": "06:00",
+     "end_time": "22:00"
+    }
+   },
+   {
+    "price_components": [
+     {
+      "type": "TIME",
+      "price": 2.78,
+      "step_size": 60,
+      "vat": 8.1
+     }
+    ]
+   }
+  ],
+  "tax_included": "NO",
+  "last_updated": "2026-11-02T08:28:40Z"
+ }
+]

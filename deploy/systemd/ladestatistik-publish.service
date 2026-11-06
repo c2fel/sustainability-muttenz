@@ -1,0 +1,11 @@
+[Unit]
+Description=Ladestatistik Muttenz – Dashboard erzeugen (und optional nach GitHub pushen)
+
+[Service]
+Type=oneshot
+User=ladestatistik
+WorkingDirectory=/opt/ladestatistik
+ExecStart=/usr/bin/python3 -m ladestatistik -c /opt/ladestatistik/config.toml publish --days 28
+# Optional: Tagesdaten in den Branch "data" pushen (Deploy-Key nötig, siehe docs/deployment.md)
+# ExecStartPost=/opt/ladestatistik/deploy/git-publish.sh /opt/ladestatistik/site
+NoNewPrivileges=true

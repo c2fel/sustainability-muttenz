@@ -1,0 +1,23 @@
+# Collector im Dauerbetrieb (Raspberry Pi OS / Debian)
+# Installation: siehe docs/deployment.md
+[Unit]
+Description=Ladestatistik Muttenz – Collector
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=ladestatistik
+WorkingDirectory=/opt/ladestatistik
+ExecStart=/usr/bin/python3 -m ladestatistik -c /opt/ladestatistik/config.toml collect
+Restart=always
+RestartSec=30
+# SD-Karte schonen: nur Warnungen ins Journal
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/ladestatistik/data /opt/ladestatistik/site
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

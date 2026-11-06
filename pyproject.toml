@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ladestatistik"
+version = "0.1.0"
+description = "Auslastung und Tarife öffentlicher Ladestationen (Daten: ich-tanke-strom.ch / BFE)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []   # nur Python-Standardbibliothek
+
+[project.scripts]
+ladestatistik = "ladestatistik.cli:main"
+
+[tool.setuptools]
+packages = ["ladestatistik"]
+
+[tool.setuptools.package-data]
+ladestatistik = ["templates/*.html"]

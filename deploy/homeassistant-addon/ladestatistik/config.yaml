@@ -1,0 +1,19 @@
+# Home Assistant OS – lokales Add-on (Installation: docs/deployment.md, Variante C)
+name: Ladestatistik Muttenz
+version: "0.1.0"
+slug: ladestatistik
+description: Auslastung und Tarife öffentlicher Ladestationen aufzeichnen (ich-tanke-strom.ch / BFE)
+url: https://github.com/c2fel/sustainability-muttenz
+arch:
+  - aarch64
+  - amd64
+  - armv7
+startup: application
+boot: auto
+init: false
+map:
+  - addon_config:rw
+ports:
+  8099/tcp: 8099
+ports_description:
+  8099/tcp: Dashboard (statisch)

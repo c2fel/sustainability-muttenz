@@ -1,0 +1,16 @@
+# Statischer Webserver für das Dashboard, nur lokal erreichbar.
+# Öffentlich wird es über den Cloudflare-Tunnel (deploy/cloudflared/).
+[Unit]
+Description=Ladestatistik Muttenz – Webserver (127.0.0.1:8099)
+After=network.target
+
+[Service]
+Type=simple
+User=ladestatistik
+ExecStart=/usr/bin/python3 -m http.server 8099 --bind 127.0.0.1 --directory /opt/ladestatistik/site
+Restart=always
+NoNewPrivileges=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

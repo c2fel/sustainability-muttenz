@@ -1,0 +1,33 @@
+# Start aus dem Repo-Root:
+#   cp config.example.toml config.toml
+#   docker compose -f deploy/docker/docker-compose.yml up -d --build
+#
+# Dienste: collector (Dauerbetrieb), publisher (alle 15 min), web (127.0.0.1:8099)
+x-common: &common
+  build:
+    context: ../..
+    dockerfile: deploy/docker/Dockerfile
+  image: ladestatistik:latest
+  restart: unless-stopped
+  volumes:
+    - ../../config.toml:/app/config.toml:ro
+    - ../../data:/app/data
+    - ../../site:/app/site
+
+services:
+  collector:
+    <<: *common
+    command: ["collect"]
+
+  publisher:
+    <<: *common
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "while true; do python -m ladestatistik -c /app/config.toml publish --days 28; sleep 900; done"
+
+  web:
+    <<: *common
+    entrypoint: ["python", "-m", "http.server", "8099", "--directory", "/app/site"]
+    command: []
+    ports:
+      - "127.0.0.1:8099:8099"

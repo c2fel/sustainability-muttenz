@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ladestatistik Muttenz</title>
+<meta name="description" content="Auslastung und Tarife öffentlicher Ladestationen in Muttenz">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface-1: #fcfcfb; --surface-2: #f0efec;
+  --ring: rgba(11,11,11,0.10); --grid: #e1e0d9; --axis: #c3c2b7;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #6b6a65;
+  --series-1: #2a78d6; --series-2: #eb6834;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; --unknown: #898781;
+  --bar: #2a78d6; --bar-track: #ebe9e4;
+  --seq: #cde2fb,#9ec5f4,#6da7ec,#3987e5,#256abf,#184f95,#0d366b;
+  --seq-empty: #f0efec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --surface-2: #232321;
+    --ring: rgba(255,255,255,0.10); --grid: #2c2c2a; --axis: #383835;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9d9c95;
+    --series-1: #3987e5; --series-2: #d95926;
+    --bar: #3987e5; --bar-track: #2c2c2a;
+    --seq: #1d2a3a,#173f6e,#1c5cab,#2a78d6,#5598e7,#86b6ef,#cde2fb;
+    --seq-empty: #232321;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface-1: #1a1a19; --surface-2: #232321;
+  --ring: rgba(255,255,255,0.10); --grid: #2c2c2a; --axis: #383835;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9d9c95;
+  --series-1: #3987e5; --series-2: #d95926;
+  --bar: #3987e5; --bar-track: #2c2c2a;
+  --seq: #1d2a3a,#173f6e,#1c5cab,#2a78d6,#5598e7,#86b6ef,#cde2fb;
+  --seq-empty: #232321;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--text-primary);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 28px 16px 56px; }
+header h1 { font-size: 26px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--text-secondary); }
+.meta { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 24px 0; }
+.tile, .card { background: var(--surface-1); border-radius: 12px; box-shadow: 0 0 0 1px var(--ring); }
+.tile { padding: 16px 18px; }
+.tile .label { font-size: 13px; color: var(--text-secondary); }
+.tile .value { font-size: 30px; font-weight: 600; margin-top: 4px; line-height: 1.1; }
+.tile .sub { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+.card { padding: 20px; margin-top: 16px; }
+.card h2 { font-size: 17px; margin: 0 0 4px; }
+.card .lead { margin: 0 0 16px; color: var(--text-secondary); font-size: 14px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th { text-align: left; font-weight: 600; color: var(--text-secondary); font-size: 12.5px;
+  border-bottom: 1px solid var(--axis); padding: 8px 10px; white-space: nowrap; }
+td { border-bottom: 1px solid var(--grid); padding: 8px 10px; vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+code { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.muted { color: var(--text-muted); }
+.small { font-size: 12.5px; }
+.meter { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.meter .track { display: inline-block; width: 64px; height: 6px; border-radius: 3px; background: var(--bar-track); overflow: hidden; flex: none; }
+.meter .fill { display: block; height: 100%; background: var(--bar); border-radius: 3px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.chip i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.heat { display: grid; grid-template-columns: 28px repeat(24, minmax(0, 1fr)); gap: 2px; }
+.heat .cell { aspect-ratio: 1 / 1; border-radius: 3px; min-height: 10px; outline: none; }
+.heat .cell:focus-visible, .heat .cell:hover { box-shadow: 0 0 0 2px var(--text-primary); }
+.heat .rowlab, .heat .collab { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; }
+.heat .collab { justify-content: flex-start; }
+.scale { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; color: var(--text-muted); }
+.scale .bar { height: 8px; width: 160px; border-radius: 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--text-secondary); margin: 0 0 8px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+svg text { fill: var(--text-muted); font-size: 11px; font-family: inherit; }
+#tip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface-1); color: var(--text-primary);
+  box-shadow: 0 0 0 1px var(--ring), 0 6px 20px rgba(0,0,0,.15); border-radius: 8px; padding: 8px 10px;
+  font-size: 12.5px; max-width: 280px; display: none; }
+#tip b { font-weight: 600; }
+details { margin-top: 12px; }
+summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 13.5px; color: var(--text-secondary); margin: 12px 0 0; }
+.stats b { color: var(--text-primary); font-weight: 600; }
+.note { font-size: 12.5px; color: var(--text-muted); margin-top: 12px; }
+footer { margin-top: 32px; font-size: 12.5px; color: var(--text-muted); }
+footer a, .card a { color: var(--series-1); }
+.empty { color: var(--text-muted); font-style: italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title">Ladestatistik Muttenz</h1>
+    <p id="subtitle"></p>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <section class="tiles" id="tiles" aria-label="Kennzahlen Nahbereich"></section>
+
+  <section class="card">
+    <h2>Belegung nach Wochentag und Uhrzeit</h2>
+    <p class="lead">Anteil der Zeit, in der Ladepunkte im Nahbereich belegt waren (alle Ladepunkte zusammen).</p>
+    <div id="heat"></div>
+    <div class="scale"><span>0 %</span><span class="bar" id="scalebar"></span><span id="scalemax"></span><span>· grau = keine Daten</span></div>
+    <details><summary>Als Tabelle anzeigen</summary><div class="scroll" id="heat-table"></div></details>
+  </section>
+
+  <section class="card">
+    <h2>Standorte im Nahbereich</h2>
+    <p class="lead">Vollbelegung = Anteil der Zeit, in der an einem Standort kein Ladepunkt frei war.</p>
+    <div class="scroll" id="sites"></div>
+  </section>
+
+  <section class="card">
+    <h2>Ladepunkte im Nahbereich</h2>
+    <p class="lead">Kosten für Referenz-Ladevorgänge inkl. MWST, berechnet aus den Tarifen der Betreiber.</p>
+    <div class="scroll" id="evses"></div>
+    <div class="note" id="refnote"></div>
+  </section>
+
+  <section class="card">
+    <h2>Preis und Auslastung in der Region (AC)</h2>
+    <p class="lead" id="scatter-lead"></p>
+    <div class="legend"><span><i style="background:var(--series-1)"></i>Region</span><span><i style="background:var(--series-2)"></i>Nahbereich</span></div>
+    <div id="scatter"></div>
+    <div class="stats" id="scatter-stats"></div>
+    <div class="note">Korrelation, keine Kausalität: Standortqualität, Leistung und Bekanntheit beeinflussen die Auslastung stärker als der Preis. Belastbarer sind Vorher/Nachher-Vergleiche bei Tarifänderungen (unten).</div>
+    <details><summary>Als Tabelle anzeigen</summary><div class="scroll" id="scatter-table"></div></details>
+  </section>
+
+  <section class="card">
+    <h2>Tarifänderungen</h2>
+    <p class="lead">Neue Tarifversionen seit Beginn der Aufzeichnung, mit Auslastung je 14 Tage vorher und nachher.</p>
+    <div class="scroll" id="changes"></div>
+  </section>
+
+  <footer>
+    <p id="attribution"></p>
+    <p>Daten: <a href="data/summary.json">summary.json</a> · <a href="data/daily.csv">daily.csv</a> · <a href="data/evses.csv">evses.csv</a> · Methodik: <a href="https://github.com/c2fel/sustainability-muttenz/blob/main/docs/methodik.md">docs/methodik.md</a></p>
+  </footer>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script id="data" type="application/json">/*__DATA__*/</script>
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById('data').textContent);
+  const $ = (id) => document.getElementById(id);
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const nf = (v, d = 0) => v == null ? '–' : Number(v).toLocaleString('de-CH', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const pct = (v, d = 0) => v == null ? '–' : nf(v * 100, d) + ' %';
+  const chf = (v) => v == null ? '–' : 'CHF ' + nf(v, 2);
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fmtDate = (ts) => new Date(ts * 1000).toLocaleString('de-CH', { dateStyle: 'medium', timeStyle: 'short' });
+  const DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+  const tip = $('tip');
+  function showTip(html, x, y) {
+    tip.innerHTML = html; tip.style.display = 'block';
+    const r = tip.getBoundingClientRect();
+    let left = x + 14, top = y + 14;
+    if (left + r.width > innerWidth - 8) left = x - r.width - 14;
+    if (top + r.height > innerHeight - 8) top = y - r.height - 14;
+    tip.style.left = Math.max(8, left) + 'px'; tip.style.top = Math.max(8, top) + 'px';
+  }
+  const hideTip = () => { tip.style.display = 'none'; };
+
+  // ---------- Kopf
+  $('title').textContent = D.title || 'Ladestatistik';
+  $('subtitle').textContent = `Öffentliche Ladepunkte im Umkreis von ${nf(D.site.focus_radius_m)} m um ${D.site.address}`;
+  $('meta').textContent = `Zeitraum ${fmtDate(D.window.start)} – ${fmtDate(D.window.end)} (${nf(D.window.days, 1)} Tage) · aktualisiert ${fmtDate(D.generated_at)}`;
+  $('attribution').textContent = D.attribution;
+
+  // ---------- Kennzahlen
+  const g = D.focus.group || {}, gs = D.focus.group_sessions || {};
+  const util = g.mean_operational ? g.mean_occupied / g.mean_operational : null;
+  const tiles = [
+    ['Auslastung Nahbereich', pct(util), `${nf(D.focus.evses.length)} Ladepunkte, Ø ${nf(g.mean_occupied, 1)} gleichzeitig belegt`],
+    ['Ladevorgänge pro Tag', nf(gs.sessions_per_day, 1), 'alle Ladepunkte im Nahbereich zusammen'],
+    ['Median Standzeit', gs.median_session_min == null ? '–' : (gs.median_session_min >= 120 ? nf(gs.median_session_min / 60, 1) + ' h' : nf(gs.median_session_min) + ' min'), `${pct(gs.share_over_4h)} der Ladevorgänge länger als 4 h`],
+    ['Kein Ladepunkt frei', pct(g.full_share, 1), 'Anteil der Zeit, in der alle Ladepunkte im Nahbereich belegt waren'],
+  ];
+  $('tiles').innerHTML = tiles.map(([l, v, s]) => `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div><div class="sub">${s}</div></div>`).join('');
+
+  // ---------- Heatmap
+  const seq = css('--seq').split(',').map((s) => s.trim());
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  function ramp(t) {
+    t = Math.max(0, Math.min(1, t)); const p = t * (seq.length - 1), i = Math.min(seq.length - 2, Math.floor(p)), f = p - i;
+    const a = hex(seq[i]), b = hex(seq[i + 1]);
+    return 'rgb(' + a.map((v, k) => Math.round(v + (b[k] - v) * f)).join(',') + ')';
+  }
+  const H = D.focus.heatmap || [];
+  const vals = H.flat().filter((v) => v != null);
+  const vmax = Math.max(0.2, Math.ceil((Math.max(0, ...vals)) * 10) / 10);
+  let hh = '<div class="heat" role="img" aria-label="Belegung nach Wochentag und Stunde"><div></div>';
+  for (let h = 0; h < 24; h++) hh += `<div class="collab">${h % 3 === 0 ? h : ''}</div>`;
+  H.forEach((row, d) => {
+    hh += `<div class="rowlab">${DAYS[d]}</div>`;
+    row.forEach((v, h) => {
+      const bg = v == null ? css('--seq-empty') : ramp(v / vmax);
+      hh += `<div class="cell" tabindex="0" data-d="${d}" data-h="${h}" style="background:${bg}"></div>`;
+    });
+  });
+  $('heat').innerHTML = hh + '</div>';
+  $('scalebar').style.background = `linear-gradient(90deg, ${seq.join(',')})`;
+  $('scalemax').textContent = pct(vmax);
+  const cellTip = (el) => {
+    const d = +el.dataset.d, h = +el.dataset.h, v = H[d][h];
+    return `<b>${DAYS[d]} ${String(h).padStart(2, '0')}–${String(h + 1).padStart(2, '0')} Uhr</b><br>${v == null ? 'keine Daten' : pct(v) + ' belegt'}`;
+  };
+  $('heat').addEventListener('pointermove', (e) => { const c = e.target.closest('.cell'); c ? showTip(cellTip(c), e.clientX, e.clientY) : hideTip(); });
+  $('heat').addEventListener('pointerleave', hideTip);
+  $('heat').addEventListener('focusin', (e) => { const c = e.target.closest('.cell'); if (c) { const r = c.getBoundingClientRect(); showTip(cellTip(c), r.right, r.bottom); } });
+  $('heat').addEventListener('focusout', hideTip);
+  $('heat-table').innerHTML = '<table><tr><th>Tag</th>' + Array.from({ length: 24 }, (_, h) => `<th class="num">${h}</th>`).join('') + '</tr>' +
+    H.map((row, d) => `<tr><td>${DAYS[d]}</td>${row.map((v) => `<td class="num">${v == null ? '–' : nf(v * 100)}</td>`).join('')}</tr>`).join('') + '</table>';
+
+  // ---------- Status
+  const STATUS = { available: ['frei', '--good'], occupied: ['belegt', '--warning'], reserved: ['reserviert', '--warning'], out_of_service: ['ausser Betrieb', '--critical'], unknown: ['unbekannt', '--unknown'], removed: ['entfernt', '--unknown'] };
+  const chip = (s) => { const [l, c] = STATUS[s] || ['keine Daten', '--unknown']; return `<span class="chip"><i style="background:var(${c})"></i>${l}</span>`; };
+  const meter = (v) => v == null ? '–' : `<span class="meter"><span class="track"><span class="fill" style="width:${Math.min(100, v * 100)}%"></span></span>${pct(v)}</span>`;
+  const mins = (m) => m == null ? '–' : (m >= 120 ? nf(m / 60, 1) + ' h' : nf(m) + ' min');
+
+  // ---------- Standorte
+  const sites = D.focus.sites || [];
+  $('sites').innerHTML = sites.length ? '<table><tr><th class="num">Distanz</th><th>Standort</th><th>Betreiber</th><th class="num">Ladepunkte</th><th>Auslastung</th><th class="num">Vorgänge/Tag</th><th class="num">Vollbelegung</th><th>Tarif (inkl. MWST)</th></tr>' +
+    sites.map((s) => `<tr><td class="num">${nf(s.distance_m)} m</td><td>${esc(s.site_name)}<div class="muted small">${esc(s.address)}</div></td><td>${esc(s.operator)}</td><td class="num">${s.n_evse}</td><td>${meter(s.mean_operational ? s.mean_occupied / s.mean_operational : null)}</td><td class="num">${nf(s.sessions_per_day, 1)}</td><td class="num">${pct(s.full_share, 1)}</td><td class="small">${esc(s.tariff || 'kein Tarif in der API')}</td></tr>`).join('') + '</table>'
+    : '<p class="empty">Noch keine Daten.</p>';
+
+  // ---------- Ladepunkte
+  const refs = D.reference_sessions || [];
+  const shownRefs = refs.filter((r) => r.id !== 'schnell');
+  const ev = D.focus.evses || [];
+  $('evses').innerHTML = ev.length ? '<table><tr><th>EVSE-ID</th><th>Jetzt</th><th class="num">kW</th><th>Auslastung</th><th class="num">Vorgänge/Tag</th><th class="num">Median Dauer</th><th class="num">&gt; 4 h</th>' +
+    shownRefs.map((r) => `<th class="num">${esc(r.id[0].toUpperCase() + r.id.slice(1))}</th>`).join('') + '</tr>' +
+    ev.map((e) => `<tr><td><code>${esc(e.evse_id)}</code><div class="muted small">${esc(e.site_name)} · ${nf(e.distance_m)} m</div></td><td>${chip(e.status_now)}</td><td class="num">${nf(e.power_kw)}</td><td>${meter(e.utilization)}</td><td class="num">${nf(e.sessions_per_day, 1)}</td><td class="num">${mins(e.median_session_min)}</td><td class="num">${pct(e.share_sessions_over_4h)}</td>` +
+      shownRefs.map((r) => `<td class="num">${chf((e.ref_prices[r.id] || {}).total_chf)}</td>`).join('') + '</tr>').join('') + '</table>'
+    : '<p class="empty">Noch keine Daten.</p>';
+  $('refnote').textContent = 'Referenz-Ladevorgänge: ' + shownRefs.map((r) => `${r.id[0].toUpperCase() + r.id.slice(1)} = ${r.label}`).join(' · ') + '. „–“ = Tarif noch nicht in der BFE-API.';
+
+  // ---------- Streudiagramm
+  const sv = D.region.ac_price_vs_utilization || {};
+  const pts = sv.points || [];
+  const ref = refs.find((r) => r.id === sv.reference_session) || {};
+  $('scatter-lead').textContent = `Jeder Punkt ist ein AC-Ladepunkt im Umkreis von ${nf(D.site.record_radius_km)} km mit Tarif in der BFE-API. x = effektiver Preis pro kWh für „${ref.label || sv.reference_session}“, y = Auslastung.`;
+  function drawScatter() {
+    const box = $('scatter'); const W = Math.max(300, box.clientWidth), Hh = 300, m = { l: 44, r: 12, t: 10, b: 36 };
+    if (!pts.length) { box.innerHTML = '<p class="empty">Noch zu wenige Ladepunkte mit Tarif und ausreichender Beobachtungsdauer.</p>'; return; }
+    const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+    const x0 = Math.floor(Math.min(...xs) * 10) / 10, x1 = Math.ceil(Math.max(...xs) * 10) / 10 || 1;
+    const y1 = Math.max(0.1, Math.ceil(Math.max(...ys) * 10) / 10);
+    const X = (v) => m.l + (v - x0) / ((x1 - x0) || 1) * (W - m.l - m.r), Y = (v) => Hh - m.b - v / y1 * (Hh - m.t - m.b);
+    let s = `<svg width="${W}" height="${Hh}" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Streudiagramm Preis gegen Auslastung">`;
+    for (let i = 0; i <= 4; i++) { const v = y1 * i / 4, y = Y(v); s += `<line x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}" stroke="${css('--grid')}" />` + `<text x="${m.l - 6}" y="${y + 4}" text-anchor="end">${nf(v * 100)} %</text>`; }
+    const xt = 5; for (let i = 0; i <= xt; i++) { const v = x0 + (x1 - x0) * i / xt; s += `<text x="${X(v)}" y="${Hh - m.b + 16}" text-anchor="middle">${nf(v, 2)}</text>`; }
+    s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="${css('--axis')}" />`;
+    s += `<text x="${W - m.r}" y="${Hh - 4}" text-anchor="end">CHF/kWh (inkl. Zeitgebühr, MWST)</text>`;
+    if (sv.ols && pts.length >= 5) { const o = sv.ols; s += `<line x1="${X(x0)}" y1="${Y(Math.max(0, o.intercept + o.slope * x0))}" x2="${X(x1)}" y2="${Y(Math.max(0, o.intercept + o.slope * x1))}" stroke="${css('--text-muted')}" stroke-width="1.5" />`; }
+    const order = pts.map((p, i) => i).sort((a, b) => pts[a].is_focus - pts[b].is_focus);
+    order.forEach((i) => { const p = pts[i]; s += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${p.is_focus ? 6 : 4.5}" fill="${css(p.is_focus ? '--series-2' : '--series-1')}" stroke="${css('--surface-1')}" stroke-width="2" />`; });
+    box.innerHTML = s + '</svg>';
+    const svg = box.querySelector('svg');
+    svg.addEventListener('pointermove', (e) => {
+      const r = svg.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      let best = -1, bd = 24 * 24;
+      pts.forEach((p, i) => { const d = (X(p.x) - mx) ** 2 + (Y(p.y) - my) ** 2; if (d < bd) { bd = d; best = i; } });
+      if (best < 0) return hideTip();
+      const p = pts[best];
+      showTip(`<b>${esc(p.site_name)}</b><br><code>${esc(p.evse_id)}</code><br>${esc(p.operator)} · ${nf(p.power_kw)} kW<br>${nf(p.x, 2)} CHF/kWh · Auslastung ${pct(p.y, 1)}`, e.clientX, e.clientY);
+    });
+    svg.addEventListener('pointerleave', hideTip);
+  }
+  drawScatter();
+  addEventListener('resize', drawScatter);
+  const st = [];
+  st.push(`<span>Ladepunkte: <b>${nf(sv.n)}</b></span>`);
+  if (sv.ols) st.push(`<span>Korrelation r: <b>${nf(sv.ols.r, 2)}</b></span>`, `<span>+10 Rp./kWh ⇒ <b>${nf(sv.ols.slope * 0.1 * 100, 1)}</b> Prozentpunkte Auslastung</span>`);
+  if (sv.elasticity != null) st.push(`<span>Preiselastizität: <b>${nf(sv.elasticity, 2)}</b> (n = ${sv.elasticity_n})</span>`);
+  const be = D.region.blocking_effect || {};
+  if (be.mit_zeitgebuehr && be.ohne_zeitgebuehr && be.mit_zeitgebuehr.n && be.ohne_zeitgebuehr.n) st.push(`<span>Median Standzeit mit / ohne Zeitgebühr: <b>${mins(be.mit_zeitgebuehr.median_session_min)}</b> / <b>${mins(be.ohne_zeitgebuehr.median_session_min)}</b></span>`);
+  $('scatter-stats').innerHTML = st.join('');
+  $('scatter-table').innerHTML = (sv.quartiles ? '<table><tr><th>Preisquartil (CHF/kWh)</th><th class="num">Ladepunkte</th><th class="num">Ø Auslastung</th></tr>' + sv.quartiles.map((q) => `<tr><td>${nf(q.from, 2)} – ${nf(q.to, 2)}</td><td class="num">${q.n}</td><td class="num">${pct(q.mean_utilization, 1)}</td></tr>`).join('') + '</table><br>' : '') +
+    '<table><tr><th>EVSE-ID</th><th>Standort</th><th class="num">CHF/kWh</th><th class="num">Auslastung</th></tr>' + pts.slice().sort((a, b) => a.x - b.x).map((p) => `<tr><td><code>${esc(p.evse_id)}</code></td><td>${esc(p.site_name)}</td><td class="num">${nf(p.x, 2)}</td><td class="num">${pct(p.y, 1)}</td></tr>`).join('') + '</table>';
+
+  // ---------- Tarifänderungen
+  const ch = D.tariff_changes || [];
+  $('changes').innerHTML = ch.length ? '<table><tr><th>Datum</th><th>EVSE-ID</th><th>Änderung</th><th class="num">Auslastung vorher</th><th class="num">nachher</th></tr>' +
+    ch.map((c) => `<tr><td>${esc(c.date)}</td><td><code>${esc(c.evse_id)}</code></td><td class="small">${esc(c.tariff_after || ('neue Tarif-ID ' + c.tariff_key))}</td><td class="num">${pct(c.utilization_before, 1)}</td><td class="num">${pct(c.utilization_after, 1)}</td></tr>`).join('') + '</table>'
+    : '<p class="empty">Noch keine Tarifänderungen beobachtet.</p>';
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+# Ladestatistik Muttenz – Konfiguration
+# Kopieren nach config.toml und anpassen. Relative Pfade gelten ab diesem File.
+
+[site]
+name = "Bahnhofstrasse 48, Muttenz"
+address = "Bahnhofstrasse 48, 4132 Muttenz"
+# amtliche Gebäudeadresse (swisstopo), WGS84
+lat = 47.531982
+lon = 7.649472
+
+[scope]
+# Alles in diesem Umkreis wird aufgezeichnet. Ein grosser Umkreis liefert
+# genug Stationen mit unterschiedlichen Preisen für die Preis-Auslastungs-
+# Analyse (15 km ≈ Basel, Birsfelden, Pratteln, Münchenstein, Liestal-Rand).
+record_radius_km = 15
+# Zusätzlich alle Ladepunkte innerhalb der Gemeindegrenze (swisstopo).
+record_municipality = true
+# "Nahbereich" für Dashboard/Auswertung (Konkurrenz in Gehdistanz).
+focus_radius_m = 800
+# Zusätzliche Fokus-Ladepunkte unabhängig von der Distanz:
+focus_evse_ids = [
+  # "CH*IWB*E55311", "CH*IWB*E55312",   # IWB Hauptstrasse 2 (1.06 km)
+]
+exclude_evse_ids = []
+
+[collector]
+db_path = "data/ladestatistik.sqlite"
+cache_dir = "data/cache"
+ocpi_delta_interval_s = 60      # Statusänderungen (ganze Schweiz, wenige kB)
+ocpi_full_interval_s = 900      # Vollabzug als Absicherung (~600 kB)
+oicp_enabled = true             # CPOs ohne OCPI (MOVE, eCarUp, Migros, Shell, AVIA …)
+oicp_interval_s = 120           # ~180 kB gzip pro Abruf
+catalog_interval_s = 21600      # Standorte + Tarife alle 6 h
+max_gap_s = 600                 # längere Lücken = "nicht beobachtet"
+flush_interval_s = 300          # Intervall-Verlängerungen gesammelt schreiben (SD-Karte)
+
+[analysis]
+# "session": Zeitgebühr (TIME) gilt für die ganze Anschlussdauer (CH-Praxis)
+# "charging": nur während des Ladens (OCPI-Spezifikation)
+time_mode = "session"
+min_session_s = 300             # kürzere Belegungen = Rauschen
+merge_gap_s = 180               # Unterbrüche < 3 min = gleicher Ladevorgang
+
+# Referenz-Ladevorgänge für den Preisvergleich (weekday: 0 = Montag)
+[[analysis.reference_session]]
+id = "kurz"
+label = "Einkauf: Sa 10:00, 1 h, 10 kWh"
+weekday = 5
+start = "10:00"
+duration_min = 60
+energy_kwh = 10
+max_power_kw = 11
+
+[[analysis.reference_session]]
+id = "pendler"
+label = "Pendler: Di 07:00, 9 h, 25 kWh"
+weekday = 1
+start = "07:00"
+duration_min = 540
+energy_kwh = 25
+max_power_kw = 11
+
+[[analysis.reference_session]]
+id = "nacht"
+label = "Anwohner: Mi 19:00, 12 h, 30 kWh"
+weekday = 2
+start = "19:00"
+duration_min = 720
+energy_kwh = 30
+max_power_kw = 11
+
+[[analysis.reference_session]]
+id = "schnell"
+label = "Schnellladen: Do 14:00, 30 min, 25 kWh"
+weekday = 3
+start = "14:00"
+duration_min = 30
+energy_kwh = 25
+max_power_kw = 150
+
+# Manuell erfasste Tarife (Bruttopreise inkl. MWST) für Ladepunkte, deren Tarif
+# (noch) nicht in der OCPI-API steht. Werte aus der Betreiber-App / Website
+# übernehmen und Quelle + Datum angeben. Überschreibt einen API-Tarif.
+#
+# [[manual_tariff]]
+# evse_ids = ["CH*IWB*E55318", "CH*IWB*E55319"]
+# valid_from = "2026-11-06"
+# source = "Swisscharge-App, Screenshot 2026-11-06"
+# energy_chf_kwh = 0.00
+# time_chf_h = 0.00          # Zeitpreis ab Minute 0 (optional)
+# blocking_chf_h = 0.00      # Zeitpreis ab blocking_after_min (ersetzt time_chf_h)
+# blocking_after_min = 240
+# blocking_start = "08:00"   # optional: Blockiergebühr nur tagsüber
+# blocking_end = "20:00"
+# flat_chf = 0.00            # Startgebühr pro Ladevorgang
+
+[publish]
+out_dir = "site"
+title = "Ladestatistik Muttenz"
